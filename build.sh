@@ -11,4 +11,5 @@ python simplify_import_release.py
 python unified_release.py
 python coordinator_release.py
 python routine_release.py
+python finalize_v241.py
 python -m pip install -r requirements.txt
