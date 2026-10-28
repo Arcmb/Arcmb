@@ -20,7 +20,14 @@ REPLACEMENTS = (
 
 
 def prepare():
+    # The tracked requirements file is authoritative. The legacy archive contains
+    # its original dependency pins and must not restore them during each build.
+    requirements_path = ROOT / 'requirements.txt'
+    requirements = requirements_path.read_text(encoding='utf-8')
+    if not requirements.strip():
+        raise RuntimeError('The tracked requirements.txt must not be empty.')
     unpack()
+    requirements_path.write_text(requirements, encoding='utf-8')
     for name in FILES:
         path = ROOT / name
         text = path.read_text(encoding='utf-8')
