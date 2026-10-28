@@ -1,0 +1,28 @@
+# Horário da May — revisão e ativação pelo proprietário no painel Render.
+# Usa o PostgreSQL existente. Não cria nem altera o plano do banco.
+# Nenhuma senha real é armazenada neste arquivo.
+services:
+  - type: web
+    name: horariodamay
+    runtime: python
+    region: ohio
+    plan: free
+    branch: horariodamay
+    autoDeployTrigger: commit
+    buildCommand: python unpack_source.py && pip install -r requirements.txt
+    startCommand: gunicorn webapp:application --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60 --access-logfile -
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ritmo-online-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MASTER_USERNAME
+        value: arcmb
+      - key: MASTER_PASSWORD
+        sync: false
+      - key: ALLOWED_HOSTS
+        value: horariodamay.onrender.com
+      - key: DATABASE_EXPIRES_AT
+        value: "2026-11-27T01:30:38Z"
