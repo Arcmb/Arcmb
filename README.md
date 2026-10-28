@@ -1,69 +1,69 @@
-# Horário da May — online 2.0
+# Meu Cronograma — versão online
 
-Planejador de rotina, estudos e revisões sem IA. Interface HTML/CSS/JavaScript e servidor Python/WSGI com PostgreSQL. Esta ramificação é independente do site existente na main.
+Planejamento semanal, conteúdos estudados e revisões adaptativas sem IA.
+Interface responsiva HTML/CSS/JavaScript, servidor Python/WSGI e PostgreSQL no Neon.
 
-## Fonte e integridade
+## Publicação
 
-O código-fonte completo do aplicativo está comprimido, sem criptografia, em `source/part1.xzpart`, `part2.xzpart`, `part3.xzpart`. Execute `python unpack_source.py` para obter os 11 arquivos originais (`webapp.py`, `planner.py`, interface e dependências). O extrator verifica SHA-256 e uma lista fechada de caminhos antes de escrever. Nenhuma senha real ou dado pessoal de planejamento faz parte do pacote.
+Repositório `Arcmb/Arcmb`, ramificação `meucronograma`.
+A ramificação `main` e os outros sites não são alterados.
+Endereço pretendido: `https://meucronograma.onrender.com` (confirme o endereço atribuído pelo Render).
+Build: `bash build.sh`. Inicialização: `bash start.sh`. Região: Ohio. Plano: Free.
 
-SHA-256 do pacote concatenado: `69251ef48eac0f10816e103ef76bb25361448542009c51d27ba0bad1bcfbca16`.
-
-Para manutenção futura, descompacte e edite os arquivos. Pode-se substituir este empacotamento por arquivos-fonte normais e mudar o build para `pip install -r requirements.txt`; não rode o extrator sobre edições que ainda não tenham sido incorporadas ao pacote.
-
-## Render
-
-Nome: `horariodamay`; região: Ohio; runtime: Python; plano inicialmente Free.
-
-Build:
-```
-python unpack_source.py && pip install -r requirements.txt
-```
-Start:
-```
-gunicorn webapp:application --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 60 --access-logfile -
-```
-
-Configure exclusivamente no painel Environment:
-
-- `DATABASE_URL`: URL interna do PostgreSQL `ritmo-online-db` existente.
+Configure no ambiente do Render, nunca no código:
+- `DATABASE_URL`: conexão PostgreSQL do projeto Neon existente `horariodamay`.
 - `SECRET_KEY`: segredo aleatório de pelo menos 32 caracteres.
 - `MASTER_USERNAME`: `arcmb`.
-- `MASTER_PASSWORD`: senha inicial do proprietário, somente para criar a conta.
-- `ALLOWED_HOSTS`: `horariodamay.onrender.com`.
-- `DATABASE_EXPIRES_AT`: vencimento ISO opcional, exibido só ao Master.
+- `MASTER_PASSWORD`: senha inicial do proprietário. Não redefine senha existente.
+- `ALLOWED_HOSTS`: `meucronograma.onrender.com`.
+- `PYTHONUNBUFFERED`: `1`.
 
-NUNCA configure `LOCAL_TEST=1` na nuvem. Sem DATABASE_URL, a página responde configuração pendente; não aceita salvar em um disco efêmero. `/healthz` é apenas um indicador de processo/configuração, não uma prova de prontidão do banco. Após configurar o PostgreSQL, valide login, gravação e leitura em outro acesso.
-
-A integração de publicação não fornece a senha do PostgreSQL. Copie Internal Database URL no painel do banco e configure DATABASE_URL no serviço, salvando com novo deploy. Não envie credenciais ao GitHub.
+Não configure `LOCAL_TEST=1` na nuvem. Sem banco e chave, o aplicativo recusa gravar.
+Não é usado o antigo banco `ritmo-online-db` do Render. Nenhum banco é criado pelo Blueprint.
+O projeto, banco, tabelas e cookies internos preservam os identificadores antigos para compatibilidade.
 
 ## Contas
 
-`arcmb` é Master permanente, com senha inicial configurada fora do código. Pode selecionar a conta da Mayra, editar sua rotina, cadastrar usuários e redefinir senhas. O proprietário não pode ser desativado ou rebaixado.
+`arcmb` é o Master proprietário permanente. Pode cadastrar contas, abrir e editar planejamentos,
+redefinir senhas dos usuários e consultar auditoria. Não pode ser rebaixado ou desativado pela interface.
+A conta `mayra` é criada sem senha utilizável. O Master define uma senha provisória em
+**Painel Master → Mayra → Editar acesso**. No primeiro acesso, ela precisa trocar essa senha.
+Não há cadastro público nem recuperação por e-mail. O usuário comum só acessa sua própria conta.
 
-A conta `mayra` é criada sem senha utilizável. Depois de entrar, o Master define uma senha provisória em Painel Master > Mayra > Editar acesso. Ela deverá trocar a senha no primeiro login. Não há cadastro público ou recuperação por e-mail.
+## Fonte verificável
+
+`source/part1.xzpart`, `part2.xzpart` e `part3.xzpart` contêm o código original sem criptografia.
+`unpack_source.py` valida SHA-256 e uma lista fechada de caminhos antes de extrair.
+`prepare_release.py` aplica os nomes Meu Cronograma, preserva o esquema do banco e adiciona `/readyz`.
+Não edite os arquivos extraídos sem também atualizar o pacote ou o processo de build.
+Hash do pacote original: `69251ef48eac0f10816e103ef76bb25361448542009c51d27ba0bad1bcfbca16`.
+
+## Verificações
+
+57 testes locais de motor e servidor aprovados após a mudança de nome.
+O verificador `verify_release.py` passou localmente com SQLite.
+No servidor, antes de iniciar o Gunicorn, ele verifica o banco configurado com uma conta técnica temporária:
+login, gravação, leitura em nova sessão, restrição de acesso, CSRF e conflito de versões.
+A conta e os registros técnicos são removidos ao concluir. Contas e planejamentos reais não são editados.
+O log `MEUCRONOGRAMA_RELEASE_CHECK_OK` confirma a aprovação; não são impressas credenciais.
+`/readyz` testa a conexão com o banco. `/healthz` informa se há configuração mínima.
+Isso não substitui o teste manual no iPhone nem uma auditoria completa de segurança.
 
 ## Recursos
 
-Diagnóstico, disponibilidade, sono, pausas, reserva, compromissos semanais/quinzenais independentes, deslocamentos, bloqueios pontuais, disciplinas e metas, conteúdos estudados continuamente, revisões configuráveis, quadro semanal em grade/lista, edição/fixação de blocos, verificações e perguntas condicionais, histórico, JSON/CSV/ICS e importação dos backups RITMO locais.
+Diagnóstico da rotina, disponibilidade por dia, compromissos semanais/quinzenais independentes,
+sono, pausas, reserva, deslocamentos, disciplinas e metas, cadastro contínuo de conteúdos,
+revisões periódicas configuráveis, verificações, perguntas de retomada, histórico, grade/lista semanal,
+edição/fixação de blocos, exportação JSON/CSV/ICS e importação de backups RITMO.
+O motor é uma heurística explicável; não garante ótimo global nem interpreta texto livre por IA.
+Ausência de execução não é classificada automaticamente como falta de conhecimento.
 
-O motor usa heurística de encaixe e resultados declarados. Não garante ótimo global, não interpreta texto livre com IA e não realiza diagnóstico ou previsão de notas. Não realizar uma tarefa é tratado separadamente de dificuldade de conteúdo.
+## Segurança e operação
 
-## Segurança e armazenamento
-
-PostgreSQL obrigatório na nuvem; tabelas `hmay_*`. Senhas PBKDF2-SHA256 com sal aleatório, sessões opacas, cookies Secure/HttpOnly/Lax, CSRF, autorização no servidor, bloqueio de tentativas, consultas parametrizadas e proteção contra sobrescrita concorrente com versão por perfil. Confirmação de salvamento só depois do commit.
-
-O Master pode acessar os dados da usuária; a interface informa esse acesso. Backups JSON/CSV não são criptografados e contêm dados pessoais. JSON não inclui credenciais e não substitui backup administrativo completo do banco. Mantenha cópias externas.
-
-O banco gratuito identificado expira em 2026-11-27T01:30:38Z (26/11/2026 às 22h30 em Belém). Migre ou altere o plano antes do vencimento. Nenhum plano pago é contratado pelo aplicativo. Consulte as condições atuais em https://render.com/docs/free.
-
-## iPhone
-
-Acesse pelo Safari. Interface responsiva, lista semanal e formulários adaptados. Exige internet para carregar e salvar; não há edição offline nem notificações com o site fechado.
-
-## Verificação realizada
-
-57 testes locais do motor/servidor aprovados, incluindo 100 cronogramas aleatórios dentro de um teste. 17 fluxos de interface aprovados em Chromium, desktop e viewport móvel. A interface utilizou ponte para WSGI/SQLite porque a navegação HTTP é bloqueada no ambiente de teste. Não equivale a teste em Safari físico ou validação do PostgreSQL de produção.
-
-## Teste local explícito
-
-Depois de extrair, com Python 3.11+: defina LOCAL_TEST=1 e MASTER_PASSWORD apenas no ambiente local e execute `python webapp.py`. Abra http://127.0.0.1:8765. Não exponha esse servidor de teste à internet.
+Senhas PBKDF2-SHA256 com sal aleatório, sessões opacas, cookies Secure/HttpOnly/Lax,
+autorização no servidor, CSRF, limitação de tentativas, SQL parametrizado e controle de versão.
+A gravação só é confirmada depois do commit. Os dados da usuária podem ser vistos pelo Master.
+Backups JSON/CSV contêm dados pessoais e não são criptografados; mantenha cópias externas privadas.
+O plano gratuito do Render pode suspender o serviço por inatividade; não oferece disponibilidade contínua.
+No iPhone, acesse pelo Safari. É necessária internet para carregar e salvar.
+Não há edição offline nem notificações com o site fechado.
