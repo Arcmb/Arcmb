@@ -11,12 +11,17 @@ ROOT = Path(__file__).resolve().parent
 def prepare():
     path = ROOT / 'verify_selective.py'
     text = path.read_text(encoding='utf-8')
-    old = "require('v2.5'in source and '/static/selective.js'in source,'v2.5 assets missing.')"
-    new = "require('v2.7'in source and '/static/selective.js'in source,'v2.7 assets missing.')"
-    if text.count(old) == 1 and new not in text:
-        path.write_text(text.replace(old, new, 1), encoding='utf-8')
-    elif text.count(new) != 1 or old in text:
+    lines = text.splitlines()
+    matches = [
+        index for index, line in enumerate(lines)
+        if 'require(' in line and '/static/selective.js' in line and 'assets missing' in line
+    ]
+    if len(matches) != 1:
         raise RuntimeError('Unexpected selective-interface release assertion.')
+    index = matches[0]
+    indent = lines[index][:len(lines[index]) - len(lines[index].lstrip())]
+    lines[index] = indent + "require('v2.7'in source and '/static/selective.js'in source,'v2.7 assets missing.')"
+    path.write_text('\n'.join(lines) + ('\n' if text.endswith('\n') else ''), encoding='utf-8')
     print('MEUCRONOGRAMA_V27_ASSET_CHECK_READY: legacy asset identity aligned; functional checks retained.')
 
 
