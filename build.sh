@@ -23,4 +23,5 @@ python finalize_v27_assets.py
 python two_tab_release.py
 python finalize_v281.py
 python finalize_v28.py
+python inspect_ui_build.py
 python -m pip install -r requirements.txt
