@@ -24,7 +24,7 @@ def main():
     scripts = re.findall(r'<script[^>]+src="([^"]+)"[^>]*></script>', html)
     require(scripts, 'Application scripts missing.')
     require(
-        '/static/two_tab.js?v=2.8.1' in scripts,
+        '/static/two_tab.js?v=2.8.2' in scripts,
         'Two-tab interface with cache-busting version is missing from app.html.',
     )
     ui_source = (root / 'static' / 'two_tab.js').read_text(encoding='utf-8')
@@ -88,7 +88,7 @@ def main():
     else:
         raise RuntimeError('Student language must be required when questions 01-05 have two versions.')
 
-    print('MEUCRONOGRAMA_V281_CHECK_OK: UI override, exactly two tabs, 180 student answers, 185 map rows per color and English/Spanish selection passed.', flush=True)
+    print('MEUCRONOGRAMA_V282_CHECK_OK: UI asset, exactly two tabs, 180 student answers, 185 map rows per color and English/Spanish selection passed.', flush=True)
 
 
 if __name__ == '__main__':
