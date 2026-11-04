@@ -24,5 +24,6 @@ python two_tab_release.py
 python finalize_v281.py
 python finalize_v28.py
 python replace_legacy_model_page.py
+python serve_two_tab_asset.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt

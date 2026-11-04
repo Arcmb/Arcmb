@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+python verify_two_tab_asset.py || exit 18
 python verify_two_tab.py || exit 17
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
