@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-python verify_release.py
-python verify_adaptive.py
-python verify_selective.py
-python verify_workbook.py
-python verify_coordinator.py
-python verify_model_data.py
-python verify_two_tab.py
+python verify_two_tab.py || exit 17
+python verify_release.py || exit 11
+python verify_adaptive.py || exit 12
+python verify_selective.py || exit 13
+python verify_workbook.py || exit 14
+python verify_coordinator.py || exit 15
+python verify_model_data.py || exit 16
 exec gunicorn webapp:application --bind "0.0.0.0:${PORT:-10000}" --workers 1 --threads 4 --timeout 60 --access-logfile -
