@@ -14,4 +14,5 @@ python coordinator_release.py
 python routine_release.py
 python finalize_v241.py
 python area_tabs_release.py
+python finalize_v25.py
 python -m pip install -r requirements.txt
