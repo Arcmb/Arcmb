@@ -24,12 +24,13 @@ def main():
     scripts = re.findall(r'<script[^>]+src="([^"]+)"[^>]*></script>', html)
     require(scripts, 'Application scripts missing.')
     require(
-        scripts[-1] == '/static/two_tab.js?v=2.8.1',
-        'Two-tab interface must be the last external script in app.html.',
+        '/static/two_tab.js?v=2.8.1' in scripts,
+        'Two-tab interface with cache-busting version is missing from app.html.',
     )
     ui_source = (root / 'static' / 'two_tab.js').read_text(encoding='utf-8')
     require('v281ResultModelView' in ui_source, 'Two-tab view implementation missing.')
     require('DOMContentLoaded' in ui_source and 'v281Install' in ui_source, 'Late UI activation missing.')
+    require('MutationObserver' in ui_source and 'v281ReplaceLegacyScreen' in ui_source, 'Legacy-screen replacement missing.')
     require('Gerar arquivo com 2 abas' in ui_source, 'Definitive two-tab button missing.')
     require('Gerar Excel separado por áreas' not in ui_source, 'Legacy area button leaked into two-tab UI.')
 
