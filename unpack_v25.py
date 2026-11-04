@@ -17,7 +17,7 @@ def unpack():
     blob=base64.b64decode(encoded,validate=True)
     if hashlib.sha256(blob).hexdigest()!=SHA256:
         raise RuntimeError('v2.5 source integrity check failed.')
-    decoder=lzma.LZMADecompressor(memlimit=64*1024*1024)
+    decoder=lzma.LZMADecompressor(memlimit=256*1024*1024)
     raw=decoder.decompress(blob,max_length=300001)
     if len(raw)>300000 or not decoder.eof or decoder.unused_data:
         raise RuntimeError('v2.5 source exceeds limits.')
