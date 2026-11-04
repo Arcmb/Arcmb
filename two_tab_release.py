@@ -152,30 +152,45 @@ def prepare():
 
     app_path = ROOT / 'webapp.py'
     app = app_path.read_text(encoding='utf-8')
-    app, count = re.subn(r"ready=True,version='2\.7'", "ready=True,version='2.8'", app, count=1)
-    if count != 1 and "ready=True,version='2.8'" not in app:
-        raise RuntimeError('Identificação da versão 2.7 não encontrada.')
+    app, count = re.subn(
+        r"ready=True,version='(?:2\.7|2\.8)'",
+        "ready=True,version='2.8.1'",
+        app,
+        count=1,
+    )
+    if count != 1 and "ready=True,version='2.8.1'" not in app:
+        raise RuntimeError('Identificação da versão anterior não encontrada.')
     app_path.write_text(app, encoding='utf-8')
 
     html_path = ROOT / 'static' / 'app.html'
     html = html_path.read_text(encoding='utf-8')
-    script = '<script src="/static/two_tab.js?v=2.8" defer></script>'
-    if script not in html:
-        match = re.search(r'<script src="/static/model_data\.js\?v=[^"]+" defer></script>', html)
-        if not match:
-            raise RuntimeError('Script model_data.js não encontrado.')
-        html = html[:match.end()] + script + html[match.end():]
-    html = re.sub(r'v2\.7', 'v2.8', html)
+    # Remove qualquer posição anterior do script e o reinsere como último script
+    # do body. Assim, nenhum componente legado pode sobrescrever a nova tela.
+    html = re.sub(
+        r'\s*<script src="/static/two_tab\.js\?v=[^"]+" defer></script>',
+        '',
+        html,
+    )
+    script = '<script src="/static/two_tab.js?v=2.8.1" defer></script>'
+    if '</body>' not in html:
+        raise RuntimeError('Fechamento do body não encontrado em app.html.')
+    html = html.replace('</body>', script + '\n</body>', 1)
+    html = re.sub(r'v2\.(?:7|8)(?!\.\d)', 'v2.8.1', html)
     html_path.write_text(html, encoding='utf-8')
 
     # Keep legacy startup checks aligned without disabling any functional test.
     for verifier in ROOT.glob('verify_*.py'):
         source = verifier.read_text(encoding='utf-8')
-        source = source.replace("get('version')=='2.7'", "get('version')=='2.8'")
-        source = source.replace("'v2.7'in source", "'v2.8'in source")
+        source = re.sub(
+            r"get\('version'\)=='2\.(?:7|8)'",
+            "get('version')=='2.8.1'",
+            source,
+        )
+        source = source.replace("'v2.7'in source", "'v2.8.1'in source")
+        source = source.replace("'v2.8'in source", "'v2.8.1'in source")
         verifier.write_text(source, encoding='utf-8')
 
-    print('MEUCRONOGRAMA_V28_PREPARED: two tabs, 45 LC responses, 50 LC map records per color and language-specific scoring prepared.')
+    print('MEUCRONOGRAMA_V281_PREPARED: two-tab interface loaded last; legacy area generator cannot overwrite it.')
 
 
 if __name__ == '__main__':
