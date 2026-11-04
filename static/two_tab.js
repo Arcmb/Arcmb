@@ -34,7 +34,8 @@ async function v281DownloadModel(){
 }
 
 function v281ReplaceLegacyScreen(){
- const legacyButton=[...document.querySelectorAll('button')].find(button=>/Gerar Excel separado por áreas/i.test(button.textContent||''));
+ const legacyPattern=new RegExp('Gerar Excel separado por '+'áreas','i');
+ const legacyButton=[...document.querySelectorAll('button')].find(button=>legacyPattern.test(button.textContent||''));
  if(!legacyButton)return;
  const target=document.querySelector('main')||document.querySelector('#content')||document.querySelector('#app-content')||legacyButton.closest('.page')||legacyButton.parentElement;
  if(target&&!target.querySelector('[data-v281-model]'))target.innerHTML=v281ResultModelView();
