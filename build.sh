@@ -19,4 +19,5 @@ python finalize_v25.py
 python simulado_info_release.py
 python model_data_release.py
 python finalize_v27.py
+python finalize_v27_assets.py
 python -m pip install -r requirements.txt
