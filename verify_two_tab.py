@@ -1,6 +1,8 @@
 """Deployment check for the definitive two-tab workbook and language variants."""
 import base64
+import re
 from collections import Counter
+from pathlib import Path
 
 import model_data as M
 import selective as S
@@ -17,6 +19,20 @@ def encoded(blob):
 
 
 def main():
+    root = Path(__file__).resolve().parent
+    html = (root / 'static' / 'app.html').read_text(encoding='utf-8')
+    scripts = re.findall(r'<script[^>]+src="([^"]+)"[^>]*></script>', html)
+    require(scripts, 'Application scripts missing.')
+    require(
+        scripts[-1] == '/static/two_tab.js?v=2.8.1',
+        'Two-tab interface must be the last external script in app.html.',
+    )
+    ui_source = (root / 'static' / 'two_tab.js').read_text(encoding='utf-8')
+    require('v281ResultModelView' in ui_source, 'Two-tab view implementation missing.')
+    require('DOMContentLoaded' in ui_source and 'v281Install' in ui_source, 'Late UI activation missing.')
+    require('Gerar arquivo com 2 abas' in ui_source, 'Definitive two-tab button missing.')
+    require('Gerar Excel separado por áreas' not in ui_source, 'Legacy area button leaked into two-tab UI.')
+
     blob, _ = M.template({'questions': 180, 'colors': ['AZUL', 'AMARELO', 'BRANCO', 'VERDE']})
     data = {'filename': 'MODELO_DADOS_2_ABAS.xlsx', 'file': encoded(blob)}
     _, _, sheets, _, _ = S.matrix(data)
@@ -71,7 +87,7 @@ def main():
     else:
         raise RuntimeError('Student language must be required when questions 01-05 have two versions.')
 
-    print('MEUCRONOGRAMA_V28_CHECK_OK: exactly two tabs, 180 student answers, 185 map rows per color and English/Spanish selection passed.', flush=True)
+    print('MEUCRONOGRAMA_V281_CHECK_OK: UI override, exactly two tabs, 180 student answers, 185 map rows per color and English/Spanish selection passed.', flush=True)
 
 
 if __name__ == '__main__':
