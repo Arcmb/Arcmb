@@ -28,6 +28,6 @@ python serve_two_tab_asset.py
 python result_export_release.py
 python result_export_asset_fix.py
 python result_import_release.py
-python inspect_binding_source.py
+python student_import_rules_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
