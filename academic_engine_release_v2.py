@@ -39,8 +39,7 @@ def patch_adaptive_compat():
         new=P.generate(copy.deepcopy(p),w,mode=mode,bonuses=weights);P.validate(new)
 """
     preview_replacement = """        weights,own,shared=bonuses(app,c,user,target,p)
-        use_academic=data.get('academic','yes')!='no'
-        academic=academic_priority(app,c,target,p) if use_academic else {'enabled':False,'used':False,'bonuses':{},'subjects':[],'unmatched':[],'notice':'Resultados acadêmicos desativados para esta prévia.'}
+        academic=academic_priority(app,c,target,p)
         new=P.generate(copy.deepcopy(p),w,mode=mode,bonuses=weights,subject_bonuses=academic.get('bonuses',{}));P.validate(new)
 """
     if 'subject_bonuses=academic.get' not in source:
@@ -74,11 +73,6 @@ function academicPriorityHtml(info,compact=false){
     if 'Resultados acadêmicos no motor matemático' not in source:
         academic_section = '`<section class="card"><h2>Resultados acadêmicos no motor matemático</h2>${academicPriorityHtml(d.academic)}<p class="micro">O resultado altera somente a distribuição relativa entre disciplinas ativas. Não cria horários, não muda a carga total e não salva nada sem prévia e confirmação.</p></section>`+\n '
         source = replace_once(source, collective_anchor, academic_section + collective_anchor, 'seção acadêmica do mapeamento')
-
-    mode_select = "${select('Como organizar?','mode','fill',[['fill','Completar espaços livres sem retirar os blocos existentes'],['reorganize','Reorganizar blocos futuros não fixados']])}"
-    academic_select = "${select('Usar resultados acadêmicos recentes?','academic','yes',[['yes','Sim — ajustar prioridades por disciplina com limites'],['no','Não — usar somente metas, dificuldade, importância e prazo']])}"
-    if "'Usar resultados acadêmicos recentes?'" not in source:
-        source = replace_once(source, mode_select, mode_select + academic_select, 'controle acadêmico da prévia')
 
     preview_anchor = '<p>${esc(s.own.notice)}</p><p>${esc(s.collective.notice)}</p>'
     if 'Influência dos resultados acadêmicos' not in source:
