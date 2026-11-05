@@ -108,8 +108,10 @@ def main():
             summary, _, _, _, _ = S.matrix({**workbook, 'sheet': 'Resumo dos alunos'})
             require(len(summary) == 2, 'Only the regular student must appear in the summary.')
             require(summary[1][0] == 'Aluno Exportação ' + token, 'Student name missing from summary.')
-            require(int(summary[1][7]) == 2 and int(summary[1][8]) == 1, 'Converted correct/error totals are incorrect.')
-            require(int(summary[1][10]) == 3, 'Valid-question denominator is incorrect.')
+            headers = {str(value): index for index, value in enumerate(summary[0])}
+            require('Acertos' in headers and 'Erros' in headers and 'Questões válidas' in headers, 'Required converted-result columns are missing.')
+            require(int(summary[1][headers['Acertos']]) == 2 and int(summary[1][headers['Erros']]) == 1, 'Converted correct/error totals are incorrect.')
+            require(int(summary[1][headers['Questões válidas']]) == 3, 'Valid-question denominator is incorrect.')
 
             skill_rows, _, _, _, _ = S.matrix({**workbook, 'sheet': 'Por habilidade'})
             labels = {str(row[3]) for row in skill_rows[1:] if len(row) > 3}
