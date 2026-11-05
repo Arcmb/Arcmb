@@ -37,5 +37,6 @@ python final_interaction_release.py
 python academic_engine_release_v2.py
 python student_home_dashboard_release.py
 python tri_scores_release.py
+python inspect_review_source.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
