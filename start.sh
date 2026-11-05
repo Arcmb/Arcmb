@@ -5,6 +5,7 @@ python verify_two_tab.py || exit 17
 python verify_result_export.py || exit 19
 python verify_result_import.py || exit 20
 python verify_student_import_rules.py || exit 21
+python verify_bulk_student_accounts.py || exit 22
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
