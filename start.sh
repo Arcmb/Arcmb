@@ -10,5 +10,5 @@ python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
 python verify_workbook.py || exit 14
 python verify_coordinator.py || exit 15
-python verify_model_data.py || exit 16
+python diagnose_verify_model_data.py || exit 16
 exec gunicorn webapp:application --bind "0.0.0.0:${PORT:-10000}" --workers 1 --threads 4 --timeout 60 --access-logfile -
