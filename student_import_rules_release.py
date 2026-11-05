@@ -42,7 +42,7 @@ def patch_python():
         1,
     )
 
-    helper = '''\n\n# === MEU CRONOGRAMA: REGRAS FINAIS DE IMPORTAÇÃO DE ALUNOS ===\ndef _student_account_value(account, key):\n    try:\n        return account[key]\n    except (KeyError, IndexError, TypeError):\n        return ''\n\n\ndef _is_importable_student_account(account):\n    name = F.norm(_student_account_value(account, 'name'))\n    technical_name = F.norm('Verificação técnica temporária')\n    return (\n        _student_account_value(account, 'role') == 'user'\n        and not name.startswith(technical_name)\n    )\n\n\ndef _resolve_student_account(accounts, student):\n    \"\"\"Resolve by full name; login only disambiguates exact-name homonyms.\"\"\"\n    normalized_name = F.norm(student.get('name', ''))\n    same_name = [\n        account for account in accounts\n        if F.norm(_student_account_value(account, 'name')) == normalized_name\n    ]\n    if len(same_name) == 1:\n        return _student_account_value(same_name[0], 'id')\n    if len(same_name) > 1 and student.get('login'):\n        login = F.text(student.get('login'), 100).lower()\n        same_login = [\n            account for account in same_name\n            if F.text(_student_account_value(account, 'username'), 100).lower() == login\n        ]\n        if len(same_login) == 1:\n            return _student_account_value(same_login[0], 'id')\n    return ''\n'''
+    helper = '''\n\n# === MEU CRONOGRAMA: REGRAS FINAIS DE IMPORTAÇÃO DE ALUNOS ===\ndef _student_account_value(account, key):\n    try:\n        return account[key]\n    except (KeyError, IndexError, TypeError):\n        return ''\n\n\ndef _is_importable_student_account(account):\n    name = F.norm(_student_account_value(account, 'name'))\n    technical_name = F.norm('Verificação técnica temporária')\n    return (\n        _student_account_value(account, 'role') in ('user', 'aluno')\n        and not name.startswith(technical_name)\n    )\n\n\ndef _resolve_student_account(accounts, student):\n    \"\"\"Resolve by full name; login only disambiguates exact-name homonyms.\"\"\"\n    normalized_name = F.norm(student.get('name', ''))\n    same_name = [\n        account for account in accounts\n        if F.norm(_student_account_value(account, 'name')) == normalized_name\n    ]\n    if len(same_name) == 1:\n        return _student_account_value(same_name[0], 'id')\n    if len(same_name) > 1 and student.get('login'):\n        login = F.text(student.get('login'), 100).lower()\n        same_login = [\n            account for account in same_name\n            if F.text(_student_account_value(account, 'username'), 100).lower() == login\n        ]\n        if len(same_login) == 1:\n            return _student_account_value(same_login[0], 'id')\n    return ''\n'''
     source = replace_once(
         source,
         '\ndef prepare(app, c, user, data):\n',
@@ -54,7 +54,7 @@ def patch_python():
         "    accounts = F.allowed_accounts(app, c, user); byid = {a['id']: a for a in accounts}\n",
         "    allowed_student_accounts = [\n"
         "        account for account in F.allowed_accounts(app, c, user)\n"
-        "        if _student_account_value(account, 'role') == 'user'\n"
+        "        if _student_account_value(account, 'role') in ('user', 'aluno')\n"
         "    ]\n"
         "    accounts = [\n"
         "        account for account in allowed_student_accounts\n"

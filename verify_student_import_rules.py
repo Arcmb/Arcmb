@@ -13,7 +13,7 @@ def main():
         require(M._answer(marker, 'Resposta') == 0, marker + ' must be converted to error zero.')
 
     accounts = [
-        {'id': 'student-a', 'name': 'Áluno da Silva', 'username': 'acesso_errado', 'role': 'user'},
+        {'id': 'student-a', 'name': 'Áluno da Silva', 'username': 'acesso_errado', 'role': 'aluno'},
         {'id': 'master', 'name': 'Áluno da Silva', 'username': 'arcmb', 'role': 'master'},
         {'id': 'technical', 'name': 'Verificação técnica temporária', 'username': 'verificacao_123', 'role': 'user'},
     ]
@@ -25,8 +25,8 @@ def main():
     )
 
     homonyms = [
-        {'id': 'one', 'name': 'Maria Souza', 'username': 'maria1', 'role': 'user'},
-        {'id': 'two', 'name': 'Maria Souza', 'username': 'maria2', 'role': 'user'},
+        {'id': 'one', 'name': 'Maria Souza', 'username': 'maria1', 'role': 'aluno'},
+        {'id': 'two', 'name': 'Maria Souza', 'username': 'maria2', 'role': 'aluno'},
     ]
     require(M._resolve_student_account(homonyms, {'name': 'Maria Souza', 'login': ''}) == '', 'Homonyms require review.')
     require(M._resolve_student_account(homonyms, {'name': 'Maria Souza', 'login': 'maria2'}) == 'two', 'Login may only disambiguate homonyms.')
