@@ -8,6 +8,7 @@ python verify_student_import_rules.py || exit 21
 python verify_bulk_student_accounts.py || exit 22
 python verify_bulk_accounts_panel.py || exit 23
 python verify_student_summary.py || exit 24
+python verify_final_interactions.py || exit 25
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
