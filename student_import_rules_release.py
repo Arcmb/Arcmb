@@ -52,11 +52,15 @@ def patch_python():
     source = replace_once(
         source,
         "    accounts = F.allowed_accounts(app, c, user); byid = {a['id']: a for a in accounts}\n",
-        "    accounts = [\n"
+        "    allowed_student_accounts = [\n"
         "        account for account in F.allowed_accounts(app, c, user)\n"
+        "        if _student_account_value(account, 'role') == 'user'\n"
+        "    ]\n"
+        "    accounts = [\n"
+        "        account for account in allowed_student_accounts\n"
         "        if _is_importable_student_account(account)\n"
         "    ]\n"
-        "    byid = {_student_account_value(a, 'id'): a for a in accounts}\n",
+        "    byid = {_student_account_value(a, 'id'): a for a in allowed_student_accounts}\n",
         'filtro de contas',
     )
     source = replace_once(
