@@ -39,5 +39,6 @@ python student_home_dashboard_release.py
 python tri_scores_release.py
 python review_evidence_release.py
 python exam_review_sync_release.py
+python finalize_review_sync_verifiers.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
