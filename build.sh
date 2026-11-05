@@ -33,6 +33,6 @@ python bulk_student_accounts_release.py
 python finalize_bulk_student_accounts.py
 python bulk_accounts_panel_release.py
 python fix_result_flow_and_student_summary.py
-python inspect_planner_engine.py
+python final_interaction_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
