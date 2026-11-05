@@ -11,6 +11,7 @@ python verify_student_summary.py || exit 24
 python verify_final_interactions.py || exit 25
 python verify_academic_engine.py || exit 26
 python verify_student_home_dashboard.py || exit 27
+python verify_tri_scores.py || exit 28
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
