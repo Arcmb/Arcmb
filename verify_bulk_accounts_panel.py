@@ -32,7 +32,7 @@ def main():
     ]:
         require(marker in js, f'Missing bulk account UI marker: {marker}')
 
-    require('/static/bulk_accounts_panel.js?v=2.8.6' in html, 'Bulk account panel script is missing from app.html.')
+    require('/static/bulk_accounts_panel.js?v=2.8.9' in html, 'Bulk account panel script is missing from app.html.')
     require("'bulk_accounts_panel.js':'application/javascript; charset=utf-8'" in webapp, 'Bulk account panel MIME entry is missing.')
     require('MEU CRONOGRAMA: PAINEL DE CONTAS EM LOTE' in css, 'Bulk account panel CSS was not added.')
     print('MEUCRONOGRAMA_BULK_ACCOUNTS_PANEL_CHECK_OK: panel placement, password visibility, progress stages and result-import handoff passed.', flush=True)
