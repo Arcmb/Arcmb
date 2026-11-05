@@ -35,5 +35,6 @@ python bulk_accounts_panel_release.py
 python fix_result_flow_and_student_summary.py
 python final_interaction_release.py
 python academic_engine_release_v2.py
+python student_home_dashboard_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
