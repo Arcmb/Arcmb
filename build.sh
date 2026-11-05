@@ -30,5 +30,6 @@ python result_export_asset_fix.py
 python result_import_release.py
 python student_import_rules_release.py
 python bulk_student_accounts_release.py
+python finalize_bulk_student_accounts.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
