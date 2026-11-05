@@ -24,12 +24,12 @@ if PMARK not in t:
 p=ROOT/"static"/"app.js"
 t=p.read_text(encoding="utf-8")
 if JMARK not in t:
-    a="\${select('Confiança nas respostas','confidence','medium',[['low','Baixa'],['medium','Média'],['high','Alta']])}\${select('Obstáculo, quando houver','reason'"
-    b="\${select('Confiança nas respostas','confidence','medium',[['low','Baixa'],['medium','Média'],['high','Alta']])}\${select('Dificuldade percebida','perceivedDifficulty','3',[['1','Muito fácil'],['2','Fácil'],['3','Moderada'],['4','Difícil'],['5','Muito difícil']])}\${select('Fez atendimento de monitoria?','monitoring','no',[['no','Não'],['yes','Sim']])}\${select('Obstáculo, quando houver','reason'"
+    a="${select('Confiança nas respostas','confidence','medium',[['low','Baixa'],['medium','Média'],['high','Alta']])}${select('Obstáculo, quando houver','reason'"
+    b="${select('Confiança nas respostas','confidence','medium',[['low','Baixa'],['medium','Média'],['high','Alta']])}${select('Dificuldade percebida','perceivedDifficulty','3',[['1','Muito fácil'],['2','Fácil'],['3','Moderada'],['4','Difícil'],['5','Muito difícil']])}${select('Fez atendimento de monitoria?','monitoring','no',[['no','Não'],['yes','Sim']])}${select('Obstáculo, quando houver','reason'"
     if a not in t: raise RuntimeError("form select anchor")
     t=t.replace(a,b,1)
-    a='</div><div id="follow-up"></div>\${area(\'Observações\',\'notes\',\'\')}'
-    b='</div><h3>Como você revisou?</h3><div class="check-list"><label><input type="checkbox" name="method_questoes"> Questões</label><label><input type="checkbox" name="method_correcao"> Refiz questões erradas / correção</label><label><input type="checkbox" name="method_resumo"> Resumo ou fichamento</label><label><input type="checkbox" name="method_flashcards"> Flashcards</label><label><input type="checkbox" name="method_releitura"> Releitura</label><label><input type="checkbox" name="method_videoaula"> Videoaula</label><label><input type="checkbox" name="method_explicacao"> Expliquei o conteúdo</label><label><input type="checkbox" name="method_mapa"> Mapa mental</label><label><input type="checkbox" name="method_monitoria"> Monitoria</label><label><input type="checkbox" name="method_outro"> Outro</label></div><div class="check-list"><label><input type="checkbox" name="needsAttention"> Este conteúdo precisa de mais atenção</label></div><div id="follow-up"></div>\${input(\'Observação sobre a monitoria\',\'monitoringNotes\',\'\',\'text\',\'maxlength="500"\')}\${area(\'Descreva como você revisou\',\'reviewDescription\',\'\')}\${area(\'Outras observações\',\'notes\',\'\')}'
+    a='</div><div id="follow-up"></div>${area(\'Observações\',\'notes\',\'\')}'
+    b='</div><h3>Como você revisou?</h3><div class="check-list"><label><input type="checkbox" name="method_questoes"> Questões</label><label><input type="checkbox" name="method_correcao"> Refiz questões erradas / correção</label><label><input type="checkbox" name="method_resumo"> Resumo ou fichamento</label><label><input type="checkbox" name="method_flashcards"> Flashcards</label><label><input type="checkbox" name="method_releitura"> Releitura</label><label><input type="checkbox" name="method_videoaula"> Videoaula</label><label><input type="checkbox" name="method_explicacao"> Expliquei o conteúdo</label><label><input type="checkbox" name="method_mapa"> Mapa mental</label><label><input type="checkbox" name="method_monitoria"> Monitoria</label><label><input type="checkbox" name="method_outro"> Outro</label></div><div class="check-list"><label><input type="checkbox" name="needsAttention"> Este conteúdo precisa de mais atenção</label></div><div id="follow-up"></div>${input(\'Observação sobre a monitoria\',\'monitoringNotes\',\'\',\'text\',\'maxlength="500"\')}${area(\'Descreva como você revisou\',\'reviewDescription\',\'\')}${area(\'Outras observações\',\'notes\',\'\')}'
     if a not in t: raise RuntimeError("form details anchor")
     t=t.replace(a,b,1)
     a="await save('feedback',{...d,sessionId:sessionId||'',contentId:contentId||'',actualMin:+d.actualMin,total:+d.total,correct:+d.correct});"
@@ -39,8 +39,8 @@ if JMARK not in t:
     a="return head('Minhas revisões','Uma fila por conteúdo, sem criar cópias diárias da mesma pendência.')"
     b="return head('Minhas revisões','Revisões periódicas com registro de questões, monitoria, método utilizado e percepção de dificuldade.')"
     t=t.replace(a,b,1)
-    a="<p>\${esc(f.message||'Resultado registrado.')}</p>"
-    b="<p>\${esc(f.message||'Resultado registrado.')}</p>\${f.perceivedDifficulty?'<p>Dificuldade percebida: '+esc({1:'Muito fácil',2:'Fácil',3:'Moderada',4:'Difícil',5:'Muito difícil'}[f.perceivedDifficulty]||f.perceivedDifficulty)+(f.needsAttention?' · Precisa de mais atenção':'')+(f.monitoring?' · Fez monitoria':'')+'</p>':''}\${f.reviewDescription?'<small>Como revisou: '+esc(f.reviewDescription)+'</small>':''}"
+    a="<p>${esc(f.message||'Resultado registrado.')}</p>"
+    b="<p>${esc(f.message||'Resultado registrado.')}</p>${f.perceivedDifficulty?'<p>Dificuldade percebida: '+esc({1:'Muito fácil',2:'Fácil',3:'Moderada',4:'Difícil',5:'Muito difícil'}[f.perceivedDifficulty]||f.perceivedDifficulty)+(f.needsAttention?' · Precisa de mais atenção':'')+(f.monitoring?' · Fez monitoria':'')+'</p>':''}${f.reviewDescription?'<small>Como revisou: '+esc(f.reviewDescription)+'</small>':''}"
     if a not in t: raise RuntimeError("checks anchor")
     t=t.replace(a,b,1)
     p.write_text(t.rstrip()+"\n\n"+JMARK+"\n",encoding="utf-8")
