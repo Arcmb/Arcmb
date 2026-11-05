@@ -8,6 +8,12 @@ NEEDLES = (
     'resultModelView',
     "acts['model-download']",
     'two_tab.js',
+    'function homeView',
+    'homeView()',
+    'function render',
+    'const views',
+    'home:homeView',
+    "view==='home'",
 )
 
 print('UI_INSPECT_BEGIN', flush=True)
@@ -29,9 +35,9 @@ for path in sorted(STATIC.glob('*')):
             start = pos + len(needle)
     if hits:
         print(f'UI_FILE {path.relative_to(ROOT)} length={len(text)} hits={len(hits)}', flush=True)
-        for pos, needle in hits[:20]:
-            left = max(0, pos - 500)
-            right = min(len(text), pos + len(needle) + 1200)
+        for pos, needle in hits[:40]:
+            left = max(0, pos - 1600)
+            right = min(len(text), pos + len(needle) + 3200)
             snippet = text[left:right].replace('\n', '\\n')
             print(f'UI_HIT {path.name} needle={needle!r} pos={pos} :: {snippet}', flush=True)
 print('UI_INSPECT_END', flush=True)
