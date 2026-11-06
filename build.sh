@@ -52,5 +52,6 @@ python review_subject_labels_release.py
 python math_study_preset_release.py
 python schedule_admin_refinement_release.py
 python student_guidance_release.py
+python student_guidance_compat_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
