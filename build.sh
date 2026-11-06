@@ -43,5 +43,6 @@ python fix_review_route_prefix.py
 python finalize_review_sync_verifiers.py
 python qi_tri_redaction_release.py
 python fix_qi_tri_template_bytes.py
+python inspect_schedule_source.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
