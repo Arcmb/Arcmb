@@ -12,6 +12,13 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+def workbook_bytes(value):
+    if isinstance(value, tuple):
+        value = next((item for item in value if isinstance(item, (bytes, bytearray))), None)
+    require(isinstance(value, (bytes, bytearray)), 'Workbook exporter did not return XLSX bytes.')
+    return bytes(value)
+
+
 def main():
     headers = [
         'NOME', 'NOME DO SIMULADO', 'DATA DE APLICAÇÃO', 'RANKING',
@@ -20,7 +27,7 @@ def main():
     ]
     row = ['ALUNO TESTE', 'SIMULADO TESTE', '06/11/2026', 1, 750, 710, 720, 730, 840,
            'Desafios da educação brasileira', 160, 180, 160, 180, 200, 880]
-    blob = M.T.export(headers, [row], first_name='TRI e Redação')
+    blob = workbook_bytes(M.T.export(headers, [row], first_name='TRI e Redação'))
     parsed = M._tri_parse_ranking({'file': base64.b64encode(blob).decode('ascii'), 'filename': 'teste.xlsx'})
     require(len(parsed['records']) == 1, 'The TRI/redaction model row was not parsed.')
     scores = parsed['records'][0]['scores']
@@ -32,7 +39,7 @@ def main():
     changed = M._tri_apply_metadata(metadata, scores, 'TRI e Redação', {'id': 'verifier'})
     require(changed and metadata['_redaction_c1'] == 160 and metadata['_redaction_c5'] == 200, 'Competencies were not persisted.')
     require(metadata['_redaction_theme'] == 'Desafios da educação brasileira', 'Essay theme was not persisted.')
-    model = M._qi_tri_template_workbook()
+    model = workbook_bytes(M._qi_tri_template_workbook())
     require(model[:2] == b'PK' and len(model) > 2000, 'Generated TRI/redaction workbook is invalid.')
     js = (ROOT / 'static' / 'tri_scores.js').read_text(encoding='utf-8')
     css = (ROOT / 'static' / 'style.css').read_text(encoding='utf-8')
