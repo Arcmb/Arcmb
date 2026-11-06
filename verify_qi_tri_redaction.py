@@ -49,7 +49,8 @@ def main():
     require('C1' in js and 'C5' in js, 'Competency preview is missing.')
     require('QI VESTIBULARES PASTEL RED V1' in css and '#b65362' in css, 'Qi pastel-red palette is missing.')
     require('/static/qi-logo.svg' in app and 'QI VESTIBULARES' in app, 'Qi wordmark is missing from the app.')
-    require('<svg' in logo and '#b65362' in logo, 'Qi logo asset is invalid.')
+    require('<svg' in logo and ('#b65362' in logo or '#d61f3c' in logo), 'Qi logo asset is invalid.')
+    require('#fff' in logo, 'Qi logo must preserve the white symbol.')
     print('MEUCRONOGRAMA_QI_TRI_REDACAO_CHECK_OK: model, TRI areas, C1-C5, essay total and Qi branding passed.', flush=True)
 
 
