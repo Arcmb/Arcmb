@@ -23,8 +23,11 @@ def main():
     require(values['s-high']==1,'Difficulty 5 and importance 5 should derive maximum priority 1.')
     require(values['s-manual']==4,'Manual priority must be preserved.')
     js=(ROOT/'static'/'student_guidance.js').read_text(encoding='utf-8')
-    for text in ['Descobrir perfil indicado','Maior importância','Maior dificuldade','Ordem alfabética','CALENDÁRIO DE REVISÕES','Disciplina: ']:
+    for text in ['Descobrir perfil indicado','Maior importância','Maior dificuldade','Ordem alfabética','Disciplina: ']:
         require(text in js,'Missing learner-guidance UI marker: '+text)
+    calendar=(ROOT/'static'/'review_calendar_table.js').read_text(encoding='utf-8')
+    require('CALENDÁRIO DE REVISÕES' in calendar,'Monthly review calendar title is missing.')
+    require('Disciplina' in calendar and 'Assunto' in calendar,'Monthly review calendar columns are missing.')
     html=(ROOT/'static'/'app.html').read_text(encoding='utf-8')
     require('/static/student_guidance.js?v=3.4.0' in html,'Learner-guidance asset is not loaded.')
     require('/static/review_calendar_table.js' in html,'Monthly review calendar asset is not loaded.')
