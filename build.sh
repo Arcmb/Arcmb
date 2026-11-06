@@ -46,6 +46,7 @@ python fix_qi_tri_template_bytes.py
 python study_schedule_release.py
 python schedule_exam_subjects_release.py
 python schedule_repreview_release.py
+python review_calendar_release.py
 python review_history_release.py
 python review_subject_labels_release.py
 python math_study_preset_release.py
