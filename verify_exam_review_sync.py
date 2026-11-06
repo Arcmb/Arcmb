@@ -1,4 +1,4 @@
-"""Verify that imported exam errors become spaced-review contents."""
+"""Verify that imported exam errors become schedulable spaced-review contents."""
 from pathlib import Path
 import hashlib, json, secrets
 
@@ -40,26 +40,30 @@ def main():
             metrics={
                 'questao:001':{'name':'Questão 01','correct':0,'total':1,'response':'D'},
                 'questao:002':{'name':'Questão 02','correct':0,'total':1,'response':'A'},
-                'questao:003':{'name':'Questão 03','correct':1,'total':1,'response':'C'},
+                'questao:003':{'name':'Questão 03','correct':0,'total':1,'response':'D'},
             }
             metadata={'COR DA PROVA':'AZUL','L.E':'','TURMA':'TESTE','_exam_id':exam_id,'_exam_version':1}
             app.db.execute(c,'INSERT INTO hmay_performance(id,user_id,activity_key,activity,applied_on,metrics,metadata,version,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
                            (perf_id,student_id,'exam_review_activity_'+token,'Simulado Revisão','2026-10-25',json.dumps(metrics),json.dumps(metadata),1,now))
             result=M._er_sync_target(app,c,dict(owner),student_id)
-            require(result['created']==1 and result['errors']==2,'Two errors in the same content must create one grouped review.')
+            require(result['created']==2 and result['errors']==3,'Three errors in two contents must create two grouped reviews.')
+            require(result.get('subjectsCreated')==1,'A missing discipline must create one schedulable subject.')
             state=app.db.execute(c,'SELECT profile FROM hmay_state WHERE user_id=?',(student_id,)).fetchone()
             profile=json.loads(state['profile'])
             imported=[x for x in profile['contents'] if x.get('sourceType')=='exam_error']
-            require(len(imported)==1,'Exactly one imported review content was expected.')
-            row=imported[0]
-            require(row.get('sourceDiscipline')=='História','Discipline was not preserved.')
-            require(row.get('title')=='Era Vargas','Subject/content title was not preserved.')
-            require(row.get('subjectId')=='sub-hist','Existing discipline must be linked to its subject.')
-            require(row.get('errorCount')==2 and len(row.get('examErrors',[]))==2,'Error list was not preserved.')
-            require(all(str(x.get('id','')).startswith('ERR-') for x in row['examErrors']),'Error identifiers were not generated.')
-            require(row.get('nextDue')==str(P.today()),'Imported error review must be due for review.')
+            require(len(imported)==2,'Two imported review contents were expected.')
+            history=next(x for x in imported if x.get('sourceDiscipline')=='História')
+            geography=next(x for x in imported if x.get('sourceDiscipline')=='Geografia')
+            require(history.get('title')=='Era Vargas' and history.get('subjectId')=='sub-hist','Existing discipline linkage was not preserved.')
+            require(history.get('errorCount')==2 and len(history.get('examErrors',[]))==2,'Grouped History errors were not preserved.')
+            auto_subject=next((x for x in profile['subjects'] if x.get('name')=='Geografia'),None)
+            require(auto_subject and auto_subject.get('priority')==2,'Automatic Geografia subject was not created with initial priority.')
+            require(geography.get('subjectId')==auto_subject.get('id'),'Imported Geografia review was not linked to the automatic subject.')
+            require(all(str(x.get('id','')).startswith('ERR-') for row in imported for x in row.get('examErrors',[])),'Error identifiers were not generated.')
+            require(all(row.get('nextDue')==str(P.today()) for row in imported),'Imported error reviews must be due for review.')
+            P.validate(profile)
             second=M._er_sync_target(app,c,dict(owner),student_id)
-            require(second['created']==0 and second['updated']==0,'Sync must be idempotent.')
+            require(second['created']==0 and second['updated']==0 and second.get('subjectsCreated')==0,'Sync must be idempotent.')
             js=(ROOT/'static'/'app.js').read_text(encoding='utf-8')
             require('EXAM ERROR REVIEW SYNC V1' in js and 'Atualizar erros dos simulados' in js,'Review UI sync is missing.')
     finally:
@@ -73,7 +77,7 @@ def main():
                 app.db.execute(c,'DELETE FROM hmay_users WHERE id=?',(student_id,))
                 key='user:'+hashlib.sha256(login.encode()).hexdigest()
                 app.db.execute(c,'DELETE FROM hmay_attempts WHERE key=?',(key,))
-    print('MEUCRONOGRAMA_EXAM_REVIEW_SYNC_CHECK_OK: imported errors became grouped, idempotent spaced reviews.',flush=True)
+    print('MEUCRONOGRAMA_EXAM_REVIEW_SYNC_CHECK_OK: imported errors became grouped reviews and missing disciplines became schedulable subjects.',flush=True)
 
 if __name__=='__main__':
     main()
