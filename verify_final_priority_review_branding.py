@@ -40,8 +40,8 @@ def main():
 
     html=(ROOT/'static'/'app.html').read_text(encoding='utf-8')
     require('/static/student_guidance.js?v=4.0.0' in html,'Final guidance cache key is missing.')
-    require('/static/style.css?v=5.0.0' in html,'Final stylesheet cache key is missing.')
-    require('/static/review_table_page.js?v=5.0.0' in html,'Dedicated review-table asset is missing.')
+    require('/static/style.css?v=5.1.0' in html,'Final stylesheet cache key is missing.')
+    require('/static/review_table_page.js?v=5.1.0' in html,'Dedicated review-table asset is missing.')
     require('/static/qi-logo.svg?v=5.0.0' in html,'Final Qi logo cache key is missing.')
     print('MEUCRONOGRAMA_FINAL_PRIORITY_REVIEW_BRANDING_CHECK_OK: differentiated priorities, dedicated review tables, Qi logo, pastel palette and white background passed.',flush=True)
 
