@@ -63,7 +63,7 @@ def main():
     require('/api/model-data/tri-inspect' in model_text and '/api/model-data/tri-confirm' in model_text, 'TRI endpoints are missing.')
     require('_tri_lc' in model_text and '_tri_mt' in model_text and 'Nota TRI geral' in model_text, 'TRI metadata/export fields are incomplete.')
     require('Importar Ranking e notas TRI' in js and 'TCT/acertos e TRI são indicadores diferentes' in js, 'TRI interface is incomplete.')
-    require('/static/tri_scores.js?v=2.9.2' in html, 'TRI asset is not loaded.')
+    require('/static/tri_scores.js?v=' in html, 'TRI asset is not loaded.')
     require("'tri_scores.js':'application/javascript; charset=utf-8'" in webapp, 'TRI static MIME is missing.')
 
     import model_data
