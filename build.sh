@@ -56,5 +56,6 @@ python student_guidance_compat_release.py
 python final_priority_review_branding_release.py
 python dedicated_review_table_release.py
 python fix_discipline_colors_runtime_release.py
+python responsive_ui_refinement_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
