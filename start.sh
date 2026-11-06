@@ -22,6 +22,7 @@ python verify_review_calendar.py || exit 35
 python verify_schedule_admin_refinement.py || exit 36
 python verify_student_guidance.py || exit 37
 python verify_final_priority_review_branding.py || exit 38
+python verify_dedicated_review_table.py || exit 39
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
