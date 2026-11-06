@@ -41,5 +41,6 @@ python review_evidence_release.py
 python exam_review_sync_release.py
 python fix_review_route_prefix.py
 python finalize_review_sync_verifiers.py
+python inspect_tri_brand.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
