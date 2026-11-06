@@ -15,7 +15,7 @@ def main():
     logo=(ROOT/'static'/'qi-logo.svg').read_text(encoding='utf-8')
     webapp=(ROOT/'webapp.py').read_text(encoding='utf-8')
 
-    require('/static/review_table_page.js?v=5.0.0' in html,'Dedicated review-table asset is not loaded last.')
+    require('/static/review_table_page.js?v=5.1.0' in html,'Dedicated review-table asset is not loaded last.')
     require('/static/qi-logo.svg?v=5.0.0' in html,'Final Qi logo cache key is missing.')
     require("['review-table','Tabela de revisões']" in js,'Dedicated navigation entry is missing.')
     require("view==='review-table'" in js and 'reviewTableView' in js,'Dedicated review-table rendering is missing.')
