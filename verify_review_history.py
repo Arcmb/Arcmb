@@ -12,7 +12,7 @@ def main():
     html=(ROOT/'static'/'app.html').read_text(encoding='utf-8')
     js=(ROOT/'static'/'review_history.js').read_text(encoding='utf-8')
     css=(ROOT/'static'/'style.css').read_text(encoding='utf-8')
-    require('/static/review_history.js?v=3.2.0' in html,'Review-history asset is not loaded.')
+    require('/static/review_history.js?v=5.1.0' in html,'Review-history asset is not loaded.')
     require(html.index('/static/study_schedule.js')<html.index('/static/review_history.js'),'Review history must load after study schedule.')
     require('GLOBAL REVIEW HISTORY V1' in js,'Review-history marker is missing.')
     require('Histórico e próximas revisões' in js and 'review-history-table' in js,'Global review table is missing.')
