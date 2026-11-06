@@ -64,7 +64,7 @@ if not any(x.get('id')=='builtin:math' for x in _STUDY_BUILTIN_PRESETS):
 
 
 def main():
-    path=ROOT/'model_data.py'
+    path=ROOT/'adaptive.py'
     text=path.read_text(encoding='utf-8')
     if MARKER in text:return
     anchor="""            if bool(data.get('applyExisting',True)):
@@ -82,10 +82,11 @@ def main():
                 if preset['id']=='builtin:math':_study_apply_math_focus(profile)
             if profile.get('planMeta'):profile['planMeta']['dirty']=True
 """
-    if anchor not in text:raise RuntimeError('Study preset apply anchor was not found.')
+    if anchor not in text:raise RuntimeError('Study preset apply anchor was not found in adaptive.py.')
     text=text.replace(anchor,replacement,1)
     text=text.rstrip()+APPEND+'\n'
     path.write_text(text,encoding='utf-8')
+    compile(text,'adaptive.py','exec')
     print('MEUCRONOGRAMA_MATH_PRESET_READY: Mathematics and Exact Sciences preset added with subject-specific priorities.',flush=True)
 
 
