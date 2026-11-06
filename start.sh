@@ -18,6 +18,7 @@ python verify_study_schedule.py || exit 31
 python verify_review_history.py || exit 32
 python verify_review_subject_labels.py || exit 33
 python verify_math_study_preset.py || exit 34
+python verify_review_calendar.py || exit 35
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
