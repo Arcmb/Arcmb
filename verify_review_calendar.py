@@ -15,7 +15,7 @@ def main():
     require('Mês anterior' in js and 'Próximo mês' in js,'Month navigation is missing.')
     require('1ª revisão' not in js or 'reviewCalendarOrdinal' in js,'Review ordinal logic is missing.')
     require('review-calendar-prev' in js and 'review-calendar-next' in js,'Calendar actions are missing.')
-    require('/static/review_calendar_table.js?v=3.2.0' in html,'Calendar script is not loaded.')
+    require('/static/review_calendar_table.js?v=5.1.0' in html,'Calendar script is not loaded.')
     require(html.index('/static/study_schedule.js')<html.index('/static/review_calendar_table.js'),'Calendar must load after study scheduling.')
     require('REVIEW CALENDAR TABLE V1' in css,'Calendar styles are missing.')
     require('position:sticky' in css and 'review-cal-projection' in css,'Sticky columns or projected-date styling is missing.')
