@@ -44,5 +44,6 @@ python finalize_review_sync_verifiers.py
 python qi_tri_redaction_release.py
 python fix_qi_tri_template_bytes.py
 python study_schedule_release.py
+python schedule_exam_subjects_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
