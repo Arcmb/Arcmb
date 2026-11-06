@@ -15,6 +15,8 @@ python verify_tri_scores.py || exit 28
 python verify_exam_review_sync.py || exit 29
 python verify_qi_tri_redaction.py || exit 30
 python verify_study_schedule.py || exit 31
+python verify_review_history.py || exit 32
+python verify_review_subject_labels.py || exit 33
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
