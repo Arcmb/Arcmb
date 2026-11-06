@@ -1,6 +1,7 @@
 """Verify the structured study schedule release before serving traffic."""
 from pathlib import Path
 import datetime as dt
+import unicodedata
 
 import planner as P
 import adaptive as A
@@ -20,7 +21,8 @@ def base_profile(name='Teste'):
 
 
 def subject(name,priority):
-    return dict(id='sub-'+name.lower(),name=name,kind='study',action='Estudar e praticar',weeklyMin=120,difficulty=3,importance=3,priority=priority,examDate='',active=True,reviewPlan='both',theoryReviewMin=10,exerciseReviewMin=20,preferredReviewDay=-1)
+    normalized=''.join(ch for ch in unicodedata.normalize('NFKD',name.lower()) if ch.isascii() and ch.isalnum())
+    return dict(id='sub-'+normalized,name=name,kind='study',action='Estudar e praticar',weeklyMin=120,difficulty=3,importance=3,priority=priority,examDate='',active=True,reviewPlan='both',theoryReviewMin=10,exerciseReviewMin=20,preferredReviewDay=-1)
 
 
 def content(identifier,subject_id,plan='both'):
