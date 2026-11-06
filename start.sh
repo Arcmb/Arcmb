@@ -24,6 +24,7 @@ python verify_student_guidance.py || exit 37
 python verify_final_priority_review_branding.py || exit 38
 python verify_dedicated_review_table.py || exit 39
 python verify_discipline_colors_review_runtime.py || exit 40
+python verify_responsive_ui_refinement.py || exit 41
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
