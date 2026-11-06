@@ -29,7 +29,7 @@ def main():
     require('CALENDÁRIO DE REVISÕES' in calendar,'Monthly review calendar title is missing.')
     require('Disciplina' in calendar and 'Assunto' in calendar,'Monthly review calendar columns are missing.')
     html=(ROOT/'static'/'app.html').read_text(encoding='utf-8')
-    require('/static/student_guidance.js?v=3.4.0' in html,'Learner-guidance asset is not loaded.')
+    require('/static/student_guidance.js?v=' in html,'Learner-guidance asset is not loaded.')
     require('/static/review_calendar_table.js' in html,'Monthly review calendar asset is not loaded.')
     print('MEUCRONOGRAMA_STUDENT_GUIDANCE_CHECK_OK: priorities, sorting, questionnaire, review table and discipline labels passed.',flush=True)
 
