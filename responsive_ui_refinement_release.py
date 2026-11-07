@@ -24,7 +24,7 @@ def patch_static():
         if filename=='app.html':
             html=re.sub(r'<img\s+src="/static/qi-logo\.svg\?v=5\.2\.0"\s+alt="Qi Vestibulares"\s*>','<img src="/static/qi-logo.svg?v=5.2.0" alt="Qi Vestibulares" onerror="this.onerror=null;this.src=\'/static/icon.svg?v=5.2.0\'">',html)
             if '/static/responsive_ui_refinement.js' not in html:
-                html=html.replace('</body>','<script src="/static/responsive_ui_refinement.js?v=5.2.0" defer></script>\n</body>',1)
+                html=html.replace('</body>','<script src="/static/responsive_ui_refinement.js?v=5.2.1" defer></script>\n</body>',1)
         path.write_text(html,encoding='utf-8')
 
 
