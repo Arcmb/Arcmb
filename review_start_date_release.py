@@ -92,7 +92,7 @@ def patch_review_js():
     start_card=(
         "return \`<section class=\"card rt-matrix-card\">"
         "<div class=\"rt-start-card\"><div class=\"rt-start-copy\"><strong>Iniciar minhas revisões em</strong>"
-        "<small>Define a data-base do ciclo atual. O histórico anterior é preservado, mas pendências anteriores a essa data deixam de acumular e o sistema volta a calcular as revisões a partir dela.</small></div>"
+        '<small>Define a data-base do ciclo atual. O histórico anterior é preservado, mas pendências anteriores a essa data deixam de acumular e o sistema volta a calcular as revisões a partir dela.</small></div>'
         "<div class=\"rt-start-actions\"><label>Data de início<input id=\"rt-review-start\" type=\"date\" value=\"\${escapeHtml(reviewCycleStartDate())}\"></label>"
         "<button type=\"button\" class=\"primary\" id=\"rt-review-start-save\">Aplicar e recalcular</button>"
         "<button type=\"button\" class=\"secondary\" id=\"rt-review-start-clear\">Usar ciclo original</button></div></div>"
