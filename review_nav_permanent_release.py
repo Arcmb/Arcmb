@@ -3,7 +3,8 @@
 The review page renderer is independent, but the menu entry was still injected
 at runtime. Any initialization-order change could therefore hide the tab even
 while the page code and learner data were valid. This release patches the base
-app navigation after all generated assets are assembled and bumps cache keys.
+app navigation after all generated assets are assembled and bumps only the
+base-app cache key required for the permanent menu entry.
 """
 from pathlib import Path
 import re
@@ -42,7 +43,7 @@ def bump_cache_keys():
     path=ROOT/'static'/'app.html'
     html=path.read_text(encoding='utf-8')
     html=re.sub(r'/static/app\.js\?v=[^"\']+','/static/app.js?v=2.9.5',html)
-    html=re.sub(r'/static/review_table_page\.js\?v=[^"\']+','/static/review_table_page.js?v=5.4.1',html)
+    html=re.sub(r'/static/review_table_page\.js\?v=[^"\']+','/static/review_table_page.js?v=5.4.0',html)
     path.write_text(html,encoding='utf-8')
 
 
