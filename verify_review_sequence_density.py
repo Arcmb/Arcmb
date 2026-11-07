@@ -16,7 +16,7 @@ def main():
     require('/static/style.css?v=5.1.0-layout4' in html,'Compact density stylesheet cache key is missing.')
     for marker in (
         'CHRONOLOGICAL REVIEW ORDER V4','reviewByDate','orderedReviews',
-        'authoritative when it shares a date',"label:(index+1)+'ª revisão'",
+        'currentFeedback','currentSessions',"label:(index+1)+'ª revisão'",
         'startIndex=Math.max(stage+1,baseDates.length)'
     ):
         require(marker in js,'Missing chronological review marker: '+marker)
