@@ -15,7 +15,7 @@ def main():
     for marker in ('RESPONSIVE UI SEARCH AND QI LOGO V3','Pesquisar aluno','account-search-results','installAccountSearch'):
         require(marker in js,'Missing account-search marker: '+marker)
     require("observe(document.body" not in js,'Account search must not observe the entire page.')
-    require("new MutationObserver(read).observe(select" in js,'Account search must update only when account options change.')
+    require("new MutationObserver(read).observe(select" in js,'Account search must update only when account options change.')\n    require('#account-wrap{display:none!important}' in css,'Redundant native account selector must be hidden.')
     require('attempts>=50' in js,'Account search startup retry must be bounded.')
     for marker in ('RESPONSIVE UI SEARCH AND QI LOGO V1','min-width:1450px','--review-discipline-width','table-layout:fixed'):
         require(marker in css,'Missing responsive-table marker: '+marker)
