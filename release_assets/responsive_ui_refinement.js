@@ -1,5 +1,5 @@
 "use strict";
-// === RESPONSIVE UI SEARCH AND QI LOGO V1 ===
+// === RESPONSIVE UI SEARCH AND QI LOGO V2 ===
 (function(){
  const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim();
  function installAccountSearch(){
@@ -40,12 +40,21 @@
    clear.addEventListener('click',()=>{input.value='';refresh();input.focus();});
    select.addEventListener('change',()=>{const selected=select.selectedOptions?.[0];if(selected){input.value=String(selected.textContent||'').trim();refresh();}});
    new MutationObserver(read).observe(select,{childList:true,subtree:true,characterData:true});
-   new MutationObserver(()=>{box.hidden=wrap.hidden;}).observe(wrap,{attributes:true,attributeFilter:['hidden','style','class']});
+   new MutationObserver(()=>{box.hidden=wrap.hidden;}).observe(wrap,{attributes:true,attributeFilter:['hidden']});
   }
-  box.hidden=wrap.hidden;read();return true;
+  box.hidden=wrap.hidden;
+  read();
+  return true;
  }
- function boot(){if(!installAccountSearch())setTimeout(boot,120);}
- document.addEventListener('DOMContentLoaded',boot,{once:true});
+ function boot(){
+  if(installAccountSearch())return;
+  let attempts=0;
+  const timer=setInterval(()=>{
+   attempts+=1;
+   if(installAccountSearch()||attempts>=50)clearInterval(timer);
+  },120);
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+ else boot();
  window.addEventListener('load',installAccountSearch,{once:true});
- document.addEventListener('DOMContentLoaded',()=>new MutationObserver(()=>installAccountSearch()).observe(document.body,{childList:true,subtree:true}),{once:true});
 })();
