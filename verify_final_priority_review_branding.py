@@ -26,7 +26,7 @@ def main():
         require(marker in guidance,'Missing final guidance marker: '+marker)
 
     dedicated=(ROOT/'static'/'review_table_page.js').read_text(encoding='utf-8')
-    for marker in ['Tabela de revisões','review-table','REVIEW TABLE DIRECT RENDERER V2','directTablesHtml','P.sessions','P.feedback']:
+    for marker in ['Tabela de revisões','review-table','REVIEW TABLE DIRECT RENDERER V2','directTablesHtml','linkedSessions','linkedFeedback']:
         require(marker in dedicated,'Missing dedicated review-table marker: '+marker)
 
     css=(ROOT/'static'/'style.css').read_text(encoding='utf-8')
