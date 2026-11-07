@@ -22,11 +22,11 @@ def main():
     require(values['math']==1,'Mathematics difficulty 5 / importance 5 must become priority 1.')
 
     guidance=(ROOT/'static'/'student_guidance.js').read_text(encoding='utf-8')
-    for marker in ['FINAL PRIORITY REVIEW BRANDING V1','qiEffectivePriority','Exemplo:']:
+    for marker in ['FINAL PRIORITY REVIEW BRANDING V1','qiEffectivePriority','Exemplo:','globalThis.qiReviewOverviewHtml']:
         require(marker in guidance,'Missing final guidance marker: '+marker)
 
     dedicated=(ROOT/'static'/'review_table_page.js').read_text(encoding='utf-8')
-    for marker in ['Tabela de revisões','reviewCalendarSection','reviewHistorySection','review-table']:
+    for marker in ['Tabela de revisões','reviewCalendarSection','reviewHistorySection','review-table','REVIEW TABLE RUNTIME BRIDGE V1']:
         require(marker in dedicated,'Missing dedicated review-table marker: '+marker)
 
     css=(ROOT/'static'/'style.css').read_text(encoding='utf-8')
@@ -40,12 +40,12 @@ def main():
 
     html=(ROOT/'static'/'app.html').read_text(encoding='utf-8')
     webapp=(ROOT/'webapp.py').read_text(encoding='utf-8')
-    require('/static/student_guidance.js?v=4.0.0' in html,'Final guidance cache key is missing.')
+    require('/static/student_guidance.js?v=4.1.0' in html,'Final guidance cache key is missing.')
     require('/static/style.css?v=5.1.0' in html,'Final stylesheet cache key is missing.')
-    require('/static/review_table_page.js?v=5.1.0' in html,'Dedicated review-table asset is missing.')
+    require('/static/review_table_page.js?v=5.3.0' in html,'Dedicated review-table asset is missing.')
     require('/static/qi-logo.svg?v=5.2.0' in html,'Final Qi logo cache key is missing.')
     require("'qi-logo.svg':'image/svg+xml; charset=utf-8'" in webapp,'Final Qi logo is not served.')
-    print('MEUCRONOGRAMA_FINAL_PRIORITY_REVIEW_BRANDING_CHECK_OK: differentiated priorities, dedicated review tables, Qi logo, pastel palette and white background passed.',flush=True)
+    print('MEUCRONOGRAMA_FINAL_PRIORITY_REVIEW_BRANDING_CHECK_OK: differentiated priorities, bridged review tables, Qi logo, pastel palette and white background passed.',flush=True)
 
 
 if __name__=='__main__':main()
