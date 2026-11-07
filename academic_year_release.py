@@ -206,8 +206,8 @@ def main():
     css_path.write_text(css,encoding='utf-8')
     html_path=STATIC/'app.html';html=html_path.read_text(encoding='utf-8')
     if '/static/academic_year.js' not in html:html=html.replace('</body>','<script src="/static/academic_year.js?v=1.1.0" defer></script>\n</body>',1)
-    else:html=re.sub(r'/static/academic_year\\.js\\?v=[^"\\']+','/static/academic_year.js?v=1.1.0',html)
-    html=re.sub(r'/static/style\\.css\\?v=[^"\\']+','/static/style.css?v=5.5.0',html)
+    else:html=re.sub(r"/static/academic_year\\.js\\?v=[^\"']+",'/static/academic_year.js?v=1.1.0',html)
+    html=re.sub(r"/static/style\\.css\\?v=[^\"']+",'/static/style.css?v=5.5.0',html)
     html_path.write_text(html,encoding='utf-8')
     print('MEUCRONOGRAMA_ACADEMIC_YEAR_READY: explicit active-year control, annual reset and year-over-year comparison installed.',flush=True)
 
