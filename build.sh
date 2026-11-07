@@ -63,5 +63,6 @@ python review_table_compact_layout_release.py
 python review_table_sequence_density_release.py
 python review_start_date_release.py
 python use_guide_release.py
+python academic_year_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
