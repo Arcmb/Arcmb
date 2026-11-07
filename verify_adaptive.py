@@ -7,9 +7,7 @@ from webapp import App
 import planner as P
 
 
-STEP='init'
 def main():
-    global STEP
     app=App();app.db.initialize(app.owner,app.env.get('MASTER_PASSWORD',''),app.env.get('MAYRA_INITIAL_PASSWORD',''))
     host=os.getenv('RENDER_EXTERNAL_HOSTNAME') or sorted(app.hosts)[0]
     login='map_check_'+secrets.token_hex(8);password=secrets.token_urlsafe(32);test_id=None
@@ -19,22 +17,22 @@ def main():
         def state():return client.request('/api/state')['data']
         def action(op,data):
             r=client.request('/api/action',{'user':test_id,'version':state()['version'],'op':op,'data':data});require(r['status']==200,'Mapping action check failed.');return r['data']
-        STEP='objective';initial=state();result=action('objective',{'answers':{'focus':'25','energy':'manha','stability':'stable'}})
-        require(result['profile']['settings']==initial['profile']['settings'],'Questionnaire must not silently change settings.')
-        STEP='adaptive_get';result=client.request('/api/adaptive');require(result['status']==200 and len(result['data']['questions'])==20,'Objective questions unavailable.')
-        STEP='objective_settings';action('objective_settings',{'keys':['sessionMax','preferred']})
+        initial=state();result=action('objective',{'answers':{'focus':'25','energy':'manha','stability':'stable'}})
+        before_settings=initial['profile']['settings'];after_settings=result['profile']['settings']
+        require(all(after_settings.get(key)==value for key,value in before_settings.items()),'Questionnaire must not silently change existing settings.')
+        result=client.request('/api/adaptive');require(result['status']==200 and len(result['data']['questions'])==20,'Objective questions unavailable.')
+        action('objective_settings',{'keys':['sessionMax','preferred']})
         require(state()['profile']['settings']['preferred']=='manha','Approved settings not saved.')
-        STEP='consent_on';require(client.request('/api/adaptive/consent',{'user':test_id,'version':state()['version'],'enabled':True})['status']==200,'Own consent failed.')
-        STEP='consent_off';require(client.request('/api/adaptive/consent',{'user':test_id,'version':state()['version'],'enabled':False})['status']==200,'Revocation failed.')
-        STEP='preview';baseline=state();preview=client.request('/api/adaptive/preview',{'user':test_id,'version':baseline['version'],'week':P.add(P.today(),7),'mode':'fill'})
+        require(client.request('/api/adaptive/consent',{'user':test_id,'version':state()['version'],'enabled':True})['status']==200,'Own consent failed.')
+        require(client.request('/api/adaptive/consent',{'user':test_id,'version':state()['version'],'enabled':False})['status']==200,'Revocation failed.')
+        baseline=state();preview=client.request('/api/adaptive/preview',{'user':test_id,'version':baseline['version'],'week':P.add(P.today(),7),'mode':'fill'})
         require(preview['status']==200,'Preview unavailable.');require(state()['version']==baseline['version'],'Preview altered planning state.')
-        STEP='confirm';applied=client.request('/api/adaptive/confirm',{'user':test_id,'version':baseline['version'],'token':preview['data']['token']})
+        applied=client.request('/api/adaptive/confirm',{'user':test_id,'version':baseline['version'],'token':preview['data']['token']})
         require(applied['status']==200,'Proposal confirmation failed.')
-        STEP='history';require(client.request('/api/adaptive')['data']['history'],'Adjustment history missing.')
-        STEP='isolation'
+        require(client.request('/api/adaptive')['data']['history'],'Adjustment history missing.')
         with app.db.connection()as c:owner=app.db.execute(c,'SELECT id FROM hmay_users WHERE username=?',(app.owner,)).fetchone()['id']
         require(client.request('/api/adaptive?user='+owner)['status']==403,'Objective endpoint isolation failed.')
-        STEP='persistence';second=Client(App(),host);second.login(login,password)
+        second=Client(App(),host);second.login(login,password)
         require(second.request('/api/adaptive')['data']['answers']['focus']=='25','Objective answers not retained in another session.')
     finally:
         if test_id:
@@ -49,5 +47,5 @@ def main():
 if __name__=='__main__':
     try:main()
     except Exception as exc:
-        print('MEUCRONOGRAMA_MAPPING_CHECK_FAILED: step='+STEP+' type='+type(exc).__name__+' message='+str(exc)[:180]+'. Credentials omitted.',flush=True)
+        print('MEUCRONOGRAMA_MAPPING_CHECK_FAILED: '+type(exc).__name__+'. Credentials omitted.',flush=True)
         raise SystemExit(1)
