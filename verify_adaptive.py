@@ -31,7 +31,8 @@ def main():
         STEP='confirm';applied=client.request('/api/adaptive/confirm',{'user':test_id,'version':baseline['version'],'token':preview['data']['token']})
         require(applied['status']==200,'Proposal confirmation failed.')
         STEP='history';require(client.request('/api/adaptive')['data']['history'],'Adjustment history missing.')
-        STEP='isolation';with app.db.connection()as c:owner=app.db.execute(c,'SELECT id FROM hmay_users WHERE username=?',(app.owner,)).fetchone()['id']
+        STEP='isolation'
+        with app.db.connection()as c:owner=app.db.execute(c,'SELECT id FROM hmay_users WHERE username=?',(app.owner,)).fetchone()['id']
         require(client.request('/api/adaptive?user='+owner)['status']==403,'Objective endpoint isolation failed.')
         STEP='persistence';second=Client(App(),host);second.login(login,password)
         require(second.request('/api/adaptive')['data']['answers']['focus']=='25','Objective answers not retained in another session.')
