@@ -87,16 +87,16 @@ def patch_review_js():
     end=text.find(' function models(){return reviewRows().map(reviewModel);}',start)
     if start<0 or end<0:raise RuntimeError('reviewModel não encontrado.')
     text=text[:start]+REVIEW_MODEL+"\n"+text[end:]
-    needle="return \`<section class=\"card rt-matrix-card\"><div class=\"rt-panel-head\">"
+    needle='return `<section class="card rt-matrix-card"><div class="rt-panel-head">'
     if needle not in text:raise RuntimeError('Template principal da tabela não encontrado.')
     start_card=(
-        "return \`<section class=\"card rt-matrix-card\">"
-        "<div class=\"rt-start-card\"><div class=\"rt-start-copy\"><strong>Iniciar minhas revisões em</strong>"
+        'return `<section class="card rt-matrix-card">'
+        '<div class="rt-start-card"><div class="rt-start-copy"><strong>Iniciar minhas revisões em</strong>'
         '<small>Define a data-base do ciclo atual. O histórico anterior é preservado, mas pendências anteriores a essa data deixam de acumular e o sistema volta a calcular as revisões a partir dela.</small></div>'
-        "<div class=\"rt-start-actions\"><label>Data de início<input id=\"rt-review-start\" type=\"date\" value=\"\${escapeHtml(reviewCycleStartDate())}\"></label>"
-        "<button type=\"button\" class=\"primary\" id=\"rt-review-start-save\">Aplicar e recalcular</button>"
-        "<button type=\"button\" class=\"secondary\" id=\"rt-review-start-clear\">Usar ciclo original</button></div></div>"
-        "<div class=\"rt-panel-head\">"
+        '<div class="rt-start-actions"><label>Data de início<input id="rt-review-start" type="date" value="${escapeHtml(reviewCycleStartDate())}"></label>'
+        '<button type="button" class="primary" id="rt-review-start-save">Aplicar e recalcular</button>'
+        '<button type="button" class="secondary" id="rt-review-start-clear">Usar ciclo original</button></div></div>'
+        '<div class="rt-panel-head">'
     )
     text=text.replace(needle,start_card,1)
     anchor=" function bindPageActions(){const sort=document.getElementById('rt-sort'),discipline=document.getElementById('rt-discipline'),date=document.getElementById('rt-date');"
