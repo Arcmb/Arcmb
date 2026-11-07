@@ -29,6 +29,7 @@ python verify_review_table_runtime_bridge.py || exit 42
 python verify_review_nav_permanent.py || exit 43
 python verify_review_table_compact_layout.py || exit 44
 python verify_review_sequence_density.py || exit 45
+python verify_review_start_date.py || exit 46
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
