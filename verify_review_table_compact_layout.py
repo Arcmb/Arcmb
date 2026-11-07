@@ -12,8 +12,8 @@ def main():
     html=(ROOT/'static'/'app.html').read_text(encoding='utf-8')
     js=(ROOT/'static'/'review_table_page.js').read_text(encoding='utf-8')
     css=(ROOT/'static'/'style.css').read_text(encoding='utf-8')
-    require('/static/review_table_page.js?v=5.4.0-layout3' in html,'Compact review-table cache key is missing.')
-    require('/static/style.css?v=5.1.0-layout3' in html,'Compact review-table stylesheet cache key is missing.')
+    require('/static/review_table_page.js?v=5.4.0-layout4' in html,'Compact review-table cache key is missing.')
+    require('/static/style.css?v=5.1.0-layout4' in html,'Compact review-table stylesheet cache key is missing.')
     for marker in (
         'REVIEW MATRIX AND HISTORY LAYOUT V3','ASSUNTO / DISCIPLINA','Datas sem ocorrência foram omitidas',
         'Ordenar por','Revisões do dia','Baixar quadro (CSV)','Imprimir quadro',
