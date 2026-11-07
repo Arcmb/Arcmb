@@ -14,7 +14,7 @@ def main():
     require('/static/review_table_page.js?v=5.4.0' in html,'Direct review-table cache key is missing.')
     for marker in (
         'REVIEW TABLE DIRECT RENDERER V2','reviewRows','linkedSessions','linkedFeedback',
-        'monthlyTable','historyTable','directTablesHtml','state().contents','state().sessions','state().feedback','Tabela de revisões'
+        'monthlyTable','historyTable','directTablesHtml','profile.contents','profile.sessions','state().feedback','Tabela de revisões'
     ):
         require(marker in page,'Missing direct renderer marker: '+marker)
     require('Tabela temporariamente indisponível' not in page,'Dependency fallback remains in the dedicated page.')
