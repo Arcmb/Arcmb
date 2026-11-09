@@ -20,10 +20,11 @@ def _academic_year_target(app,c,user,target_id,HTTPError):
         raise HTTPError(403,'A gestão de ano letivo é exclusiva do Master e da coordenação.')
     app.require_target(user,target_id,c)
     row=app.db.execute(c,'SELECT id,username,name,role,active FROM hmay_users WHERE id=?',(target_id,)).fetchone()
-    if not row:raise HTTPError(404,'Aluno não encontrado.')
+    if not row:raise HTTPError(404,'Conta não encontrada.')
     target=dict(row)
-    if target.get('role') not in ('user','aluno'):
-        raise HTTPError(400,'Selecione uma conta de aluno.')
+    own_account=str(target.get('id'))==str(user.get('id'))
+    if target.get('role') not in ('user','aluno') and not (own_account and user.get('role') in ('master','coordenador')):
+        raise HTTPError(400,'Selecione uma conta de aluno ou use a sua própria conta administrativa.')
     return target
 
 def _academic_year_active(app,c,target_id):
@@ -147,11 +148,12 @@ JS=r'''"use strict";
  const canManage=()=>typeof manages==='function'&&manages();
  const id=()=>String(typeof target!=='undefined'&&target?target:'');
  const own=()=>String(typeof ME!=='undefined'&&ME?.id?ME.id:'');
+ const contextId=()=>id()||own();
  const pct=v=>v===null||v===undefined?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
- const studentSelected=()=>canManage()&&id()&&id()!==own();
+ const studentSelected=()=>canManage()&&!!contextId();
 
  async function loadStatus(force=false){
-  const key=id();if(!studentSelected())return;
+  const key=contextId();if(!studentSelected())return;
   if((!force&&statusCache.has(key))||loadingStatus.has(key))return;
   loadingStatus.add(key);
   try{statusCache.set(key,await api('/api/academic-year?user='+encodeURIComponent(key)));}
@@ -159,7 +161,7 @@ JS=r'''"use strict";
   finally{loadingStatus.delete(key);if(view==='accounts'||view==='coordinator')render();}
  }
  async function loadComparison(force=false){
-  const key=id();if(!studentSelected())return;
+  const key=contextId();if(!studentSelected())return;
   if((!force&&comparisonCache.has(key))||loadingComparison.has(key))return;
   loadingComparison.add(key);
   try{comparisonCache.set(key,await api('/api/academic-year/comparison?user='+encodeURIComponent(key)));}
@@ -168,8 +170,8 @@ JS=r'''"use strict";
  }
  function yearPanel(){
   if(!canManage())return '';
-  if(!studentSelected())return '<section class="card academic-year-card"><p class="eyebrow">ANO LETIVO</p><h2>Escolha um aluno</h2><p>Use a caixa <strong>Pesquisar aluno</strong> no topo. Depois de selecionar o nome, o controle do ano letivo aparecerá aqui.</p></section>';
-  const key=id();
+  if(!studentSelected())return '';
+  const key=contextId();
   if(!statusCache.has(key)&&!loadingStatus.has(key))queueMicrotask(()=>loadStatus());
   const d=statusCache.get(key);
   if(!d)return '<section class="card academic-year-card"><h2>Ano letivo</h2><p>Carregando situação do perfil…</p></section>';
@@ -178,7 +180,7 @@ JS=r'''"use strict";
   const years=[...(d.availableYears||[])].sort((a,b)=>a-b);
   const newest=years.length?Math.max(...years.map(Number)):Number(d.activeYear);
   const options=years.map(y=>'<option value="'+y+'" '+(Number(y)===Number(d.activeYear)?'selected':'')+'>'+y+(Number(y)===Number(d.activeYear)?' — ativo':' — acessar')+'</option>').join('')+(Number(d.activeYear)===newest?'<option value="'+d.nextYear+'">'+d.nextYear+' — iniciar novo ciclo</option>':'');
-  return '<section class="card academic-year-card"><div class="page-head"><div><p class="eyebrow">ANO LETIVO</p><h2>Ano letivo de '+esc(d.student.name)+'</h2><p>Escolha qual ciclo ficará ativo para este aluno.</p></div>'+button('Atualizar','academic-year-refresh','secondary')+'</div>'+
+  return '<section class="card academic-year-card"><div class="page-head"><div><p class="eyebrow">ANO LETIVO</p><h2>Ano letivo de '+esc(d.student.name)+'</h2><p>Escolha qual ciclo ficará ativo para esta conta.</p></div>'+button('Atualizar','academic-year-refresh','secondary')+'</div>'+
    '<div class="academic-year-control"><label>Ano letivo ativo<select id="academic-year-select">'+options+'</select></label>'+button('Ativar ano selecionado','academic-year-activate','primary')+'</div>'+
    '<div class="stats"><div class="stat"><strong>'+d.activeYear+'</strong><span>ano ativo agora</span></div><div class="stat"><strong>'+(d.archived||[]).length+'</strong><span>ano(s) arquivado(s)</span></div></div>'+
    '<div class="notice"><strong>Navegação entre anos:</strong><p>Você pode alternar entre os anos já existentes sem apagar dados. Ao trocar de ano, o estado atual é salvo e o ciclo escolhido é carregado. Somente a opção “iniciar novo ciclo” cria um ano novo.</p></div>'+
@@ -186,7 +188,7 @@ JS=r'''"use strict";
  }
  function comparePanel(){
   if(!studentSelected())return '';
-  const key=id();
+  const key=contextId();
   if(!comparisonCache.has(key)&&!loadingComparison.has(key))queueMicrotask(()=>loadComparison());
   const d=comparisonCache.get(key);if(!d)return '<section class="card academic-year-compare"><h2>Evolução anual</h2><p>Carregando comparação…</p></section>';
   if(d.error)return '<section class="card academic-year-compare"><h2>Evolução anual</h2><div class="notice warning">'+esc(d.error)+'</div></section>';
@@ -198,8 +200,8 @@ JS=r'''"use strict";
  if(typeof accountsView==='function'){const base=accountsView;accountsView=function(){return yearPanel()+base();};}
  if(typeof coordinatorView==='function'){const base=coordinatorView;coordinatorView=function(){return yearPanel()+base();};}
  if(typeof performanceView==='function'){const base=performanceView;performanceView=function(){return base()+comparePanel();};}
- acts['academic-year-refresh']=async()=>{statusCache.delete(id());await loadStatus(true);};
- acts['academic-year-compare-refresh']=async()=>{comparisonCache.delete(id());await loadComparison(true);};
+ acts['academic-year-refresh']=async()=>{statusCache.delete(contextId());await loadStatus(true);};
+ acts['academic-year-compare-refresh']=async()=>{comparisonCache.delete(contextId());await loadComparison(true);};
  acts['academic-year-activate']=async()=>{
   const d=statusCache.get(id());if(!d)throw new Error('Atualize a situação do ano letivo.');
   const selected=Number(document.getElementById('academic-year-select')?.value||d.activeYear);
@@ -208,15 +210,15 @@ JS=r'''"use strict";
   if(selected===Number(d.nextYear)&&Number(d.activeYear)===newest){
    const msg='Iniciar '+selected+' para '+d.student.name+'?\n\nO estado de '+d.activeYear+' será salvo e '+selected+' começará como um novo ciclo.';
    if(!confirm(msg))return;
-   await api('/api/academic-year/open',{user:id(),year:selected});
+   await api('/api/academic-year/open',{user:contextId(),year:selected});
   }else{
    const available=years;
    if(!available.includes(selected))throw new Error('Ano letivo indisponível para este aluno.');
    const msg='Acessar o ano '+selected+' de '+d.student.name+'?\n\nO estado atual de '+d.activeYear+' será salvo antes da troca.';
    if(!confirm(msg))return;
-   await api('/api/academic-year/switch',{user:id(),year:selected});
+   await api('/api/academic-year/switch',{user:contextId(),year:selected});
   }
-  statusCache.delete(id());comparisonCache.delete(id());toast('Ano '+selected+' ativado.');location.reload();
+  statusCache.delete(contextId());comparisonCache.delete(contextId());toast('Ano '+selected+' ativado.');location.reload();
  };
 })();
 '''
