@@ -176,7 +176,8 @@ JS=r'''"use strict";
   if(d.error)return '<section class="card academic-year-card"><h2>Ano letivo</h2><div class="notice warning">'+esc(d.error)+'</div>'+button('Tentar novamente','academic-year-refresh','secondary')+'</section>';
   const archived=(d.archived||[]).map(x=>'<span class="academic-year-pill">'+x.academic_year+' disponível</span>').join('');
   const years=[...(d.availableYears||[])].sort((a,b)=>a-b);
-  const options=years.map(y=>'<option value="'+y+'" '+(Number(y)===Number(d.activeYear)?'selected':'')+'>'+y+(Number(y)===Number(d.activeYear)?' — ativo':' — acessar')+'</option>').join('')+'<option value="'+d.nextYear+'">'+d.nextYear+' — iniciar novo ciclo</option>';
+  const newest=years.length?Math.max(...years.map(Number)):Number(d.activeYear);
+  const options=years.map(y=>'<option value="'+y+'" '+(Number(y)===Number(d.activeYear)?'selected':'')+'>'+y+(Number(y)===Number(d.activeYear)?' — ativo':' — acessar')+'</option>').join('')+(Number(d.activeYear)===newest?'<option value="'+d.nextYear+'">'+d.nextYear+' — iniciar novo ciclo</option>':'');
   return '<section class="card academic-year-card"><div class="page-head"><div><p class="eyebrow">ANO LETIVO</p><h2>Ano letivo de '+esc(d.student.name)+'</h2><p>Escolha qual ciclo ficará ativo para este aluno.</p></div>'+button('Atualizar','academic-year-refresh','secondary')+'</div>'+
    '<div class="academic-year-control"><label>Ano letivo ativo<select id="academic-year-select">'+options+'</select></label>'+button('Ativar ano selecionado','academic-year-activate','primary')+'</div>'+
    '<div class="stats"><div class="stat"><strong>'+d.activeYear+'</strong><span>ano ativo agora</span></div><div class="stat"><strong>'+(d.archived||[]).length+'</strong><span>ano(s) arquivado(s)</span></div></div>'+
@@ -203,12 +204,13 @@ JS=r'''"use strict";
   const d=statusCache.get(id());if(!d)throw new Error('Atualize a situação do ano letivo.');
   const selected=Number(document.getElementById('academic-year-select')?.value||d.activeYear);
   if(selected===Number(d.activeYear)){toast(String(d.activeYear)+' já é o ano letivo ativo.');return;}
-  if(selected===Number(d.nextYear)){
+  const years=(d.availableYears||[]).map(Number);const newest=years.length?Math.max(...years):Number(d.activeYear);
+  if(selected===Number(d.nextYear)&&Number(d.activeYear)===newest){
    const msg='Iniciar '+selected+' para '+d.student.name+'?\n\nO estado de '+d.activeYear+' será salvo e '+selected+' começará como um novo ciclo.';
    if(!confirm(msg))return;
    await api('/api/academic-year/open',{user:id(),year:selected});
   }else{
-   const available=(d.availableYears||[]).map(Number);
+   const available=years;
    if(!available.includes(selected))throw new Error('Ano letivo indisponível para este aluno.');
    const msg='Acessar o ano '+selected+' de '+d.student.name+'?\n\nO estado atual de '+d.activeYear+' será salvo antes da troca.';
    if(!confirm(msg))return;
