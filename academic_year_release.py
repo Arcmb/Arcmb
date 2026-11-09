@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parent
 STATIC=ROOT/'static'
 MARK='# === MEU CRONOGRAMA: CICLOS DE ANO LETIVO V1 ==='
 JS_MARK='// === MEU CRONOGRAMA: CICLOS DE ANO LETIVO V1 ==='
-CSS_MARK='/* === CICLOS DE ANO LETIVO V2 === */'
+CSS_MARK='/* === CICLOS DE ANO LETIVO V1 === */'
 
 PY_HELPERS=r'''
 # === MEU CRONOGRAMA: CICLOS DE ANO LETIVO V1 ===
@@ -34,8 +34,10 @@ def _academic_year_active(app,c,target_id):
 def academic_year_status(app,c,user,target_id,HTTPError):
     target=_academic_year_target(app,c,user,target_id,HTTPError)
     active=_academic_year_active(app,c,target_id)
-    rows=app.db.execute(c,'SELECT academic_year,opened_at,closed_at FROM hmay_academic_cycles WHERE user_id=? ORDER BY academic_year DESC',(target_id,)).fetchall()
-    return {'student':{'id':target['id'],'name':target['name'],'username':target['username'],'active':bool(target['active'])},'activeYear':active,'archived':[dict(r) for r in rows],'nextYear':active+1}
+    rows=app.db.execute(c,'SELECT academic_year,opened_at,closed_at FROM hmay_academic_cycles WHERE user_id=? AND academic_year<>? ORDER BY academic_year DESC',(target_id,active)).fetchall()
+    archived=[dict(r) for r in rows]
+    years=sorted({active,*[int(r['academic_year']) for r in archived]})
+    return {'student':{'id':target['id'],'name':target['name'],'username':target['username'],'active':bool(target['active'])},'activeYear':active,'archived':archived,'availableYears':years,'nextYear':max(years)+1 if years else active+1}
 
 def academic_year_open(app,c,user,target_id,new_year,HTTPError):
     import json
@@ -48,13 +50,39 @@ def academic_year_open(app,c,user,target_id,new_year,HTTPError):
     state=app.db.execute(c,'SELECT profile,version FROM hmay_state WHERE user_id=?',(target_id,)).fetchone()
     if not state:raise HTTPError(404,'Perfil acadêmico não encontrado.')
     stamp=P.now().isoformat()
+    target_cycle=app.db.execute(c,'SELECT id FROM hmay_academic_cycles WHERE user_id=? AND academic_year=?',(target_id,new_year)).fetchone()
+    if target_cycle:raise HTTPError(409,'O ano '+str(new_year)+' já existe. Selecione esse ano no controle para alternar de ciclo.')
     existing=app.db.execute(c,'SELECT id FROM hmay_academic_cycles WHERE user_id=? AND academic_year=?',(target_id,current)).fetchone()
-    if existing:raise HTTPError(409,'O ano '+str(current)+' já foi arquivado. Atualize a página antes de tentar novamente.')
-    app.db.execute(c,'INSERT INTO hmay_academic_cycles(id,user_id,academic_year,profile,opened_at,closed_at) VALUES (?,?,?,?,?,?)',(P.uid(),target_id,current,state['profile'],str(current)+'-01-01T00:00:00',stamp))
+    if existing:
+        app.db.execute(c,'UPDATE hmay_academic_cycles SET profile=?,closed_at=? WHERE user_id=? AND academic_year=?',(state['profile'],stamp,target_id,current))
+    else:
+        app.db.execute(c,'INSERT INTO hmay_academic_cycles(id,user_id,academic_year,profile,opened_at,closed_at) VALUES (?,?,?,?,?,?)',(P.uid(),target_id,current,state['profile'],str(current)+'-01-01T00:00:00',stamp))
     fresh=P.default_profile(target['name'],target_id)
     app.db.execute(c,'UPDATE hmay_state SET profile=?,version=version+1,updated_at=? WHERE user_id=?',(encode(fresh),stamp,target_id))
     app.db.execute(c,'INSERT INTO hmay_academic_year(user_id,active_year,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET active_year=excluded.active_year,updated_at=excluded.updated_at',(target_id,new_year,stamp))
     app.event(c,user,target_id,'academic_year_open_'+str(new_year))
+    return academic_year_status(app,c,user,target_id,HTTPError)
+
+def academic_year_switch(app,c,user,target_id,selected_year,HTTPError):
+    target=_academic_year_target(app,c,user,target_id,HTTPError)
+    current=_academic_year_active(app,c,target_id)
+    try:selected_year=int(selected_year)
+    except (TypeError,ValueError):raise ValueError('Ano letivo inválido.')
+    if selected_year==current:return academic_year_status(app,c,user,target_id,HTTPError)
+    if not 2020<=selected_year<=2100:raise ValueError('Ano letivo fora do intervalo permitido.')
+    selected=app.db.execute(c,'SELECT id,profile FROM hmay_academic_cycles WHERE user_id=? AND academic_year=?',(target_id,selected_year)).fetchone()
+    if not selected:raise HTTPError(404,'O ano '+str(selected_year)+' ainda não existe para este aluno.')
+    state=app.db.execute(c,'SELECT profile,version FROM hmay_state WHERE user_id=?',(target_id,)).fetchone()
+    if not state:raise HTTPError(404,'Perfil acadêmico não encontrado.')
+    stamp=P.now().isoformat()
+    current_cycle=app.db.execute(c,'SELECT id FROM hmay_academic_cycles WHERE user_id=? AND academic_year=?',(target_id,current)).fetchone()
+    if current_cycle:
+        app.db.execute(c,'UPDATE hmay_academic_cycles SET profile=?,closed_at=? WHERE user_id=? AND academic_year=?',(state['profile'],stamp,target_id,current))
+    else:
+        app.db.execute(c,'INSERT INTO hmay_academic_cycles(id,user_id,academic_year,profile,opened_at,closed_at) VALUES (?,?,?,?,?,?)',(P.uid(),target_id,current,state['profile'],str(current)+'-01-01T00:00:00',stamp))
+    app.db.execute(c,'UPDATE hmay_state SET profile=?,version=version+1,updated_at=? WHERE user_id=?',(selected['profile'],stamp,target_id))
+    app.db.execute(c,'INSERT INTO hmay_academic_year(user_id,active_year,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET active_year=excluded.active_year,updated_at=excluded.updated_at',(target_id,selected_year,stamp))
+    app.event(c,user,target_id,'academic_year_switch_'+str(current)+'_to_'+str(selected_year))
     return academic_year_status(app,c,user,target_id,HTTPError)
 
 def academic_year_comparison(app,c,user,target_id,HTTPError):
@@ -101,6 +129,11 @@ PY_ROUTE=r'''            if path=='/api/academic-year':
                 target_id=str(data.get('user') or '')
                 result=academic_year_open(self,c,user,target_id,data.get('year'),HTTPError)
                 return self.reply(start,200,result)
+            if path=='/api/academic-year/switch':
+                if method!='POST':raise HTTPError(405,'Use POST para alternar o ano.')
+                target_id=str(data.get('user') or '')
+                result=academic_year_switch(self,c,user,target_id,data.get('year'),HTTPError)
+                return self.reply(start,200,result)
             if path=='/api/academic-year/comparison':
                 if method!='GET':raise HTTPError(405,'Use consulta GET.')
                 target_id=query.get('user',[user['id']])[0]
@@ -141,13 +174,14 @@ JS=r'''"use strict";
   const d=statusCache.get(key);
   if(!d)return '<section class="card academic-year-card"><h2>Ano letivo</h2><p>Carregando situação do perfil…</p></section>';
   if(d.error)return '<section class="card academic-year-card"><h2>Ano letivo</h2><div class="notice warning">'+esc(d.error)+'</div>'+button('Tentar novamente','academic-year-refresh','secondary')+'</section>';
-  const archived=(d.archived||[]).map(x=>'<span class="academic-year-pill">'+x.academic_year+' arquivado</span>').join('');
-  const options='<option value="'+d.activeYear+'">'+d.activeYear+' — ativo</option><option value="'+d.nextYear+'">'+d.nextYear+' — iniciar novo ciclo</option>';
+  const archived=(d.archived||[]).map(x=>'<span class="academic-year-pill">'+x.academic_year+' disponível</span>').join('');
+  const years=[...(d.availableYears||[])].sort((a,b)=>a-b);
+  const options=years.map(y=>'<option value="'+y+'" '+(Number(y)===Number(d.activeYear)?'selected':'')+'>'+y+(Number(y)===Number(d.activeYear)?' — ativo':' — acessar')+'</option>').join('')+'<option value="'+d.nextYear+'">'+d.nextYear+' — iniciar novo ciclo</option>';
   return '<section class="card academic-year-card"><div class="page-head"><div><p class="eyebrow">ANO LETIVO</p><h2>Ano letivo de '+esc(d.student.name)+'</h2><p>Escolha qual ciclo ficará ativo para este aluno.</p></div>'+button('Atualizar','academic-year-refresh','secondary')+'</div>'+
    '<div class="academic-year-control"><label>Ano letivo ativo<select id="academic-year-select">'+options+'</select></label>'+button('Ativar ano selecionado','academic-year-activate','primary')+'</div>'+
    '<div class="stats"><div class="stat"><strong>'+d.activeYear+'</strong><span>ano ativo agora</span></div><div class="stat"><strong>'+(d.archived||[]).length+'</strong><span>ano(s) arquivado(s)</span></div></div>'+
-   '<div class="notice"><strong>Se você ativar '+d.nextYear+':</strong><p>O planejamento, os conteúdos, as revisões e os registros de execução de '+d.activeYear+' serão arquivados. '+d.nextYear+' começa limpo. Os resultados dos simulados de '+d.activeYear+' continuam guardados para comparar a evolução.</p></div>'+
-   '<div class="academic-year-archive">'+(archived||'<span class="micro">Nenhum ano arquivado ainda.</span>')+'</div></section>';
+   '<div class="notice"><strong>Navegação entre anos:</strong><p>Você pode alternar entre os anos já existentes sem apagar dados. Ao trocar de ano, o estado atual é salvo e o ciclo escolhido é carregado. Somente a opção “iniciar novo ciclo” cria um ano novo.</p></div>'+
+   '<div class="academic-year-archive">'+(archived||'<span class="micro">Ainda não há outro ano disponível.</span>')+'</div></section>';
  }
  function comparePanel(){
   if(!studentSelected())return '';
@@ -169,11 +203,18 @@ JS=r'''"use strict";
   const d=statusCache.get(id());if(!d)throw new Error('Atualize a situação do ano letivo.');
   const selected=Number(document.getElementById('academic-year-select')?.value||d.activeYear);
   if(selected===Number(d.activeYear)){toast(String(d.activeYear)+' já é o ano letivo ativo.');return;}
-  if(selected!==Number(d.nextYear))throw new Error('Só é possível manter o ano atual ou abrir o próximo ciclo.');
-  const msg='Ativar '+selected+' para '+d.student.name+'?\n\nO planejamento, os conteúdos e as revisões de '+d.activeYear+' serão arquivados. '+selected+' começará limpo. Os resultados de '+d.activeYear+' continuarão disponíveis para comparação.';
-  if(!confirm(msg))return;
-  await api('/api/academic-year/open',{user:id(),year:selected});
-  statusCache.delete(id());comparisonCache.delete(id());toast('Ano '+selected+' ativado. O ciclo anterior foi arquivado.');location.reload();
+  if(selected===Number(d.nextYear)){
+   const msg='Iniciar '+selected+' para '+d.student.name+'?\n\nO estado de '+d.activeYear+' será salvo e '+selected+' começará como um novo ciclo.';
+   if(!confirm(msg))return;
+   await api('/api/academic-year/open',{user:id(),year:selected});
+  }else{
+   const available=(d.availableYears||[]).map(Number);
+   if(!available.includes(selected))throw new Error('Ano letivo indisponível para este aluno.');
+   const msg='Acessar o ano '+selected+' de '+d.student.name+'?\n\nO estado atual de '+d.activeYear+' será salvo antes da troca.';
+   if(!confirm(msg))return;
+   await api('/api/academic-year/switch',{user:id(),year:selected});
+  }
+  statusCache.delete(id());comparisonCache.delete(id());toast('Ano '+selected+' ativado.');location.reload();
  };
 })();
 '''
