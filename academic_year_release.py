@@ -203,7 +203,7 @@ JS=r'''"use strict";
  acts['academic-year-refresh']=async()=>{statusCache.delete(contextId());await loadStatus(true);};
  acts['academic-year-compare-refresh']=async()=>{comparisonCache.delete(contextId());await loadComparison(true);};
  acts['academic-year-activate']=async()=>{
-  const d=statusCache.get(id());if(!d)throw new Error('Atualize a situação do ano letivo.');
+  const d=statusCache.get(contextId());if(!d)throw new Error('Atualize a situação do ano letivo.');
   const selected=Number(document.getElementById('academic-year-select')?.value||d.activeYear);
   if(selected===Number(d.activeYear)){toast(String(d.activeYear)+' já é o ano letivo ativo.');return;}
   const years=(d.availableYears||[]).map(Number);const newest=years.length?Math.max(...years):Number(d.activeYear);
