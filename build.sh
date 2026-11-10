@@ -77,6 +77,7 @@ python hotfix_v372_release.py
 python hotfix_v373_release.py
 python hotfix_v374_release.py
 python hotfix_v375_release.py
+python hotfix_v376_release.py
 python site_version_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
