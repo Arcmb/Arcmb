@@ -41,6 +41,7 @@ python verify_management_refinement_v36.py || exit 55
 python verify_management_refinement_v37.py || exit 56
 python verify_reports_module.py || exit 57
 python verify_hotfix_v371.py || exit 58
+python verify_hotfix_v372.py || exit 59
 python verify_site_version.py || exit 50
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
