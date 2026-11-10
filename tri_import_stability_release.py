@@ -41,8 +41,27 @@ def patch_frontend():
  if(!confirm(`Vincular as notas da aba ${triImportDraft.inspection.sheet} ao simulado ${sim.activity} de ${sim.date}?`))return;
  triImportBusy=true;render();try{const d=await api('/api/model-data/tri-confirm',{file:triImportDraft.file,filename:triImportDraft.filename,activityKey:sim.activityKey,date:sim.date});studentSummaryCache?.clear?.();if(typeof resultExportSimulations!=='undefined')resultExportSimulations=null;triImportPreviewData=null;toast(`Notas TRI vinculadas: ${d.summary.updated} atualizada(s); ${d.summary.unchanged} sem mudança.`);render();}finally{triImportBusy=false;}
 };
+const triImportClearBeforeSummary=acts['tri-import-clear'];
+acts['tri-import-clear']=()=>{triImportSaveSummary=null;return triImportClearBeforeSummary();};
+document.addEventListener('change',event=>{if(event.target?.id==='tri-import-file')triImportSaveSummary=null;},true);
 """
     new = """// === TRI IMPORT STABILITY V1 ===
+let triImportSaveSummary=null;
+function triImportSavedSummaryHtml(){
+ const d=triImportSaveSummary;if(!d)return '';
+ const s=d.summary||{},issues=d.issues||{};
+ const names=v=>(v||[]).map(x=>typeof x==='string'?x:(x?.name||x?.student_name||x?.source?.name||JSON.stringify(x)));
+ const blocks=[
+  ['Não encontrados',names(issues.unmatchedNames)],
+  ['Conflitos de nome',names(issues.conflictRows)],
+  ['Sem nota no arquivo',names(issues.withoutScoreNames)]
+ ].filter(x=>x[1].length);
+ const detail=blocks.map(([title,values])=>'<div class="tri-import-issue"><strong>'+esc(title)+' ('+values.length+')</strong><ul>'+values.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul></div>').join('');
+ return '<section class="notice '+((s.unmatched||s.conflicts||s.withoutScore)?'warning':'success')+' tri-import-result"><h3>Resultado da última importação</h3><div class="student-home-mini-stats"><div><strong>'+Number(s.updated||0)+'</strong><span>atualizados</span></div><div><strong>'+Number(s.unchanged||0)+'</strong><span>sem alteração</span></div><div><strong>'+Number(s.unmatched||0)+'</strong><span>não encontrados</span></div><div><strong>'+Number(s.conflicts||0)+'</strong><span>conflitos</span></div><div><strong>'+Number(s.withoutScore||0)+'</strong><span>sem nota</span></div></div>'+detail+'</section>';
+}
+const triImportStatusBeforeSaveSummary=triImportStatus;
+triImportStatus=function(){return triImportStatusBeforeSaveSummary()+triImportSavedSummaryHtml();};
+
 acts['tri-import-confirm']=async()=>{
  const sim=triSelectedSimulation();if(!sim||!triImportPreviewData)throw new Error('Gere a conferência antes de confirmar.');
  if(!confirm(`Vincular as notas da aba ${triImportDraft.inspection.sheet} ao simulado ${sim.activity} de ${sim.date}?`))return;
@@ -52,6 +71,7 @@ acts['tri-import-confirm']=async()=>{
   studentSummaryCache?.clear?.();
   if(typeof resultExportSimulations!=='undefined')resultExportSimulations=null;
   triImportPreviewData=null;
+  triImportSaveSummary=d;
   toast(`Notas TRI e redação salvas: ${d.summary.updated} atualizada(s); ${d.summary.unchanged} sem mudança.`);
  }catch(error){
   const message=error?.message||'erro inesperado ao gravar as notas';
