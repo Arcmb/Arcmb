@@ -44,6 +44,7 @@ python verify_hotfix_v371.py || exit 58
 python verify_hotfix_v372.py || exit 59
 python verify_hotfix_v373.py || exit 60
 python verify_hotfix_v374.py || exit 61
+python verify_hotfix_v375.py || exit 62
 python verify_site_version.py || exit 50
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
