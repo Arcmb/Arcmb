@@ -19,6 +19,10 @@ def main():
     require("finally{triImportBusy=false;}" not in js[js.find("// === TRI IMPORT STABILITY V1 ==="):], "Old stuck-busy confirm handler remains.")
     require("triImportBusy=false;\n  render();" in js, "Confirm does not redraw after leaving busy state.")
     require("/api/model-data/tri-confirm" in js, "TRI confirmation endpoint missing.")
+    require("'issues': {" in model and "unmatchedNames" in model and "withoutScoreNames" in model, "Persistent import issue payload missing.")
+    require("Resultado da última importação" in js, "Persistent import summary UI missing.")
+    require("triImportSaveSummary=d" in js, "Successful import is not retained for audit.")
+    require("triImportClearBeforeSummary" in js, "Persistent summary is not cleared with import reset.")
     compile(model,"model_data.py","exec")
     print("MEUCRONOGRAMA_TRI_IMPORT_STABILITY_CHECK_OK: single-parse confirm and guaranteed UI recovery passed.",flush=True)
 
