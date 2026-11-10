@@ -35,6 +35,7 @@ python verify_academic_year.py || exit 48
 python verify_tri_import_stability.py || exit 49
 python verify_tri_import_token.py || exit 51
 python verify_tri_dashboard.py || exit 52
+python verify_performance_refinement.py || exit 53
 python verify_site_version.py || exit 50
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12

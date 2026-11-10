@@ -31,7 +31,7 @@ def main():
     require("saveButton.disabled=true" in stable, "Direct saving button state missing.")
     require("Resultado da última importação" in js, "Persistent audit summary missing.")
 
-    require("/static/tri_scores.js?v=3.3.0" in html, "TRI cache key is not aligned with token flow.")
+    require("/static/tri_scores.js?v=3.4.0" in html, "TRI cache key is not aligned with token flow.")
     require("TRI IMPORT PROCESS V2" in css, "Progress styles missing.")
     compile(model,"model_data.py","exec")
     print("MEUCRONOGRAMA_TRI_IMPORT_STABILITY_V2_CHECK_OK: batch save, 5-step progress, audit and cache bust passed.",flush=True)

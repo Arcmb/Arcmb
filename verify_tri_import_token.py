@@ -30,7 +30,7 @@ def main():
     require("registro(s) recebidos e validados pelo servidor." in token_section,"Visible server receipt count is missing.")
     require("Gravando no banco" in token_section or "gravando" in token_section,"Visible database stage missing.")
     require("Importação concluída:" in token_section,"Final verified message missing.")
-    require("/static/tri_scores.js?v=3.3.0" in html,"TRI asset cache key was not bumped.")
+    require("/static/tri_scores.js?v=3.4.0" in html,"TRI asset cache key was not bumped.")
 
     compile(model,"model_data.py","exec")
     print("MEUCRONOGRAMA_TRI_IMPORT_TOKEN_CHECK_OK: signed receipt confirmation with counts, no XLSX re-upload, batch persistence and final verification passed.",flush=True)
