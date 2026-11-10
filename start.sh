@@ -32,6 +32,7 @@ python verify_review_sequence_density.py || exit 45
 python verify_review_start_date.py || exit 46
 python verify_use_guide.py || exit 47
 python verify_academic_year.py || exit 48
+python verify_tri_import_stability.py || exit 49
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
 python verify_selective.py || exit 13
