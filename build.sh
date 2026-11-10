@@ -70,6 +70,8 @@ python tri_dashboard_release.py
 python performance_refinement_release.py
 python management_dashboard_release.py
 python management_refinement_v36_release.py
+python management_refinement_v37_release.py
+python reports_module_release.py
 python site_version_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt

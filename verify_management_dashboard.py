@@ -14,7 +14,7 @@ def main():
     for marker in ("// === MANAGEMENT DASHBOARD V3.5 ===","Painel de bordo da coordenação","Resumo geral","Médias por área","Resumo por simulado","Resumo por turma","management-turma","management-simulation"):
         require(marker in js,"Missing management UI marker: "+marker)
     require("['master','coordenador'].includes(ME.role)" in js,"Master/coordinator frontend guard missing.")
-    require("/static/student_summary.js?v=3.6.0" in html,"Management asset cache key missing.")
+    require("/static/student_summary.js?v=3.7.0" in html,"Management asset cache key missing.")
     require("MANAGEMENT DASHBOARD V3.5" in css,"Management CSS marker missing.")
     compile(model,"model_data.py","exec")
     print("MEUCRONOGRAMA_MANAGEMENT_DASHBOARD_CHECK_OK: master/coordinator aggregate dashboard, filters, KPIs, area/simulation/class analytics passed.",flush=True)

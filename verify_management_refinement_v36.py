@@ -19,7 +19,7 @@ def main():
         require(marker in js,"Missing V3.6 UI marker: "+marker)
     require("<th>% acertos</th>" in js,"Simulation/class percentage column is missing.")
     require("management-score-track" in css and "class-registry-card" in css,"V3.6 styles missing.")
-    require("/static/student_summary.js?v=3.6.0" in html,"Student summary cache key v3.6.0 missing.")
+    require("/static/student_summary.js?v=3.7.0" in html,"Student summary cache key v3.6.0 missing.")
     compile(model,"model_data.py","exec")
     print("MEUCRONOGRAMA_MANAGEMENT_REFINEMENT_CHECK_OK: fast cache, TRI 0-1000, percent tables, class registry/validation and bonus removal passed.",flush=True)
 if __name__=="__main__": main()

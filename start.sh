@@ -38,6 +38,8 @@ python verify_tri_dashboard.py || exit 52
 python verify_performance_refinement.py || exit 53
 python verify_management_dashboard.py || exit 54
 python verify_management_refinement_v36.py || exit 55
+python verify_management_refinement_v37.py || exit 56
+python verify_reports_module.py || exit 57
 python verify_site_version.py || exit 50
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
