@@ -330,13 +330,13 @@ def main():
     model=ROOT/"model_data.py"
     model_text=model.read_text(encoding="utf-8")
     if BACKEND_MARK not in model_text:
-        model_text=model_text.rstrip()+"\\n\\n"+BACKEND.strip()+"\\n"
+        model_text=model_text.rstrip()+"\n\n"+BACKEND.strip()+"\n"
         model.write_text(model_text,encoding="utf-8")
 
     js=ROOT/"static"/"tri_scores.js"
     js_text=js.read_text(encoding="utf-8")
     if FRONTEND_MARK not in js_text:
-        js_text=js_text.rstrip()+"\\n\\n"+FRONTEND.strip()+"\\n"
+        js_text=js_text.rstrip()+"\n\n"+FRONTEND.strip()+"\n"
         js.write_text(js_text,encoding="utf-8")
 
     html=ROOT/"static"/"app.html"
