@@ -1,4 +1,4 @@
-"""Fix TRI/redaction confirmation latency and stuck-busy UI."""
+"""Fix TRI/redaction confirmation latency, stuck-busy UI and persistent import audit."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -31,6 +31,23 @@ def patch_backend():
         if old not in text:
             raise RuntimeError("TRI confirm backend block was not found.")
         text = text.replace(old, new, 1)
+
+    old_reply = """                'conflicts': len(match['conflicts']), 'withoutScore': len(match['withoutScore']),
+            }
+        })"""
+    new_reply = """                'conflicts': len(match['conflicts']), 'withoutScore': len(match['withoutScore']),
+            },
+            'issues': {
+                'unmatchedNames': match['unmatched'][:100],
+                'conflictRows': match['conflicts'][:100],
+                'withoutScoreNames': match['withoutScore'][:100],
+            }
+        })"""
+    if "'issues': {" not in text:
+        if old_reply not in text:
+            raise RuntimeError("TRI confirm response block was not found.")
+        text = text.replace(old_reply, new_reply, 1)
+
     path.write_text(text, encoding="utf-8")
 
 def patch_frontend():
@@ -41,22 +58,22 @@ def patch_frontend():
  if(!confirm(`Vincular as notas da aba ${triImportDraft.inspection.sheet} ao simulado ${sim.activity} de ${sim.date}?`))return;
  triImportBusy=true;render();try{const d=await api('/api/model-data/tri-confirm',{file:triImportDraft.file,filename:triImportDraft.filename,activityKey:sim.activityKey,date:sim.date});studentSummaryCache?.clear?.();if(typeof resultExportSimulations!=='undefined')resultExportSimulations=null;triImportPreviewData=null;toast(`Notas TRI vinculadas: ${d.summary.updated} atualizada(s); ${d.summary.unchanged} sem mudança.`);render();}finally{triImportBusy=false;}
 };
-const triImportClearBeforeSummary=acts['tri-import-clear'];
-acts['tri-import-clear']=()=>{triImportSaveSummary=null;return triImportClearBeforeSummary();};
-document.addEventListener('change',event=>{if(event.target?.id==='tri-import-file')triImportSaveSummary=null;},true);
 """
     new = """// === TRI IMPORT STABILITY V1 ===
 let triImportSaveSummary=null;
+function triImportIssueName(x){
+ if(typeof x==='string')return x;
+ return x?.name||x?.student_name||x?.target?.student_name||x?.source?.name||'Registro não identificado';
+}
 function triImportSavedSummaryHtml(){
  const d=triImportSaveSummary;if(!d)return '';
  const s=d.summary||{},issues=d.issues||{};
- const names=v=>(v||[]).map(x=>typeof x==='string'?x:(x?.name||x?.student_name||x?.source?.name||JSON.stringify(x)));
  const blocks=[
-  ['Não encontrados',names(issues.unmatchedNames)],
-  ['Conflitos de nome',names(issues.conflictRows)],
-  ['Sem nota no arquivo',names(issues.withoutScoreNames)]
+  ['Não encontrados',issues.unmatchedNames||[]],
+  ['Conflitos de nome',issues.conflictRows||[]],
+  ['Sem nota no arquivo',issues.withoutScoreNames||[]]
  ].filter(x=>x[1].length);
- const detail=blocks.map(([title,values])=>'<div class="tri-import-issue"><strong>'+esc(title)+' ('+values.length+')</strong><ul>'+values.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul></div>').join('');
+ const detail=blocks.map(([title,values])=>'<div class="tri-import-issue"><strong>'+esc(title)+' ('+values.length+')</strong><ul>'+values.map(v=>'<li>'+esc(triImportIssueName(v))+'</li>').join('')+'</ul></div>').join('');
  return '<section class="notice '+((s.unmatched||s.conflicts||s.withoutScore)?'warning':'success')+' tri-import-result"><h3>Resultado da última importação</h3><div class="student-home-mini-stats"><div><strong>'+Number(s.updated||0)+'</strong><span>atualizados</span></div><div><strong>'+Number(s.unchanged||0)+'</strong><span>sem alteração</span></div><div><strong>'+Number(s.unmatched||0)+'</strong><span>não encontrados</span></div><div><strong>'+Number(s.conflicts||0)+'</strong><span>conflitos</span></div><div><strong>'+Number(s.withoutScore||0)+'</strong><span>sem nota</span></div></div>'+detail+'</section>';
 }
 const triImportStatusBeforeSaveSummary=triImportStatus;
@@ -81,6 +98,9 @@ acts['tri-import-confirm']=async()=>{
   render();
  }
 };
+const triImportClearBeforeSummary=acts['tri-import-clear'];
+acts['tri-import-clear']=()=>{triImportSaveSummary=null;return triImportClearBeforeSummary();};
+document.addEventListener('change',event=>{if(event.target?.id==='tri-import-file')triImportSaveSummary=null;},true);
 """
     if "// === TRI IMPORT STABILITY V1 ===" not in text:
         if old not in text:
@@ -91,7 +111,7 @@ acts['tri-import-confirm']=async()=>{
 def main():
     patch_backend()
     patch_frontend()
-    print("MEUCRONOGRAMA_TRI_IMPORT_STABILITY_READY: confirm reuses parsed XLSX and UI always exits saving state.", flush=True)
+    print("MEUCRONOGRAMA_TRI_IMPORT_STABILITY_READY: single-parse confirm, persistent audit summary and guaranteed UI recovery installed.", flush=True)
 
 if __name__ == "__main__":
     main()
