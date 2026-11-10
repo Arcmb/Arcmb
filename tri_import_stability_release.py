@@ -82,7 +82,9 @@ triImportStatus=function(){return triImportStatusBeforeSaveSummary()+triImportSa
 acts['tri-import-confirm']=async()=>{
  const sim=triSelectedSimulation();if(!sim||!triImportPreviewData)throw new Error('Gere a conferência antes de confirmar.');
  if(!confirm(`Vincular as notas da aba ${triImportDraft.inspection.sheet} ao simulado ${sim.activity} de ${sim.date}?`))return;
- triImportBusy=true;render();
+ triImportBusy=true;
+ const saveButton=document.querySelector('[data-act="tri-import-confirm"]');
+ if(saveButton){saveButton.disabled=true;saveButton.textContent='Salvando notas…';}
  try{
   const d=await api('/api/model-data/tri-confirm',{file:triImportDraft.file,filename:triImportDraft.filename,activityKey:sim.activityKey,date:sim.date});
   studentSummaryCache?.clear?.();
@@ -111,7 +113,7 @@ document.addEventListener('change',event=>{if(event.target?.id==='tri-import-fil
 def main():
     patch_backend()
     patch_frontend()
-    print("MEUCRONOGRAMA_TRI_IMPORT_STABILITY_READY: single-parse confirm, persistent audit summary and guaranteed UI recovery installed.", flush=True)
+    print("MEUCRONOGRAMA_TRI_IMPORT_STABILITY_READY: confirm is sent before any full-page redraw; persistent audit summary and UI recovery installed.", flush=True)
 
 if __name__ == "__main__":
     main()
