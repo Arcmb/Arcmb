@@ -318,17 +318,15 @@ def main():
     home=STATIC/"student_summary.js"
     text=home.read_text(encoding="utf-8")
     if HOME_MARK not in text:
-        home.write_text(text.rstrip()+"\n\n"+HOME_JS.strip()+"\n",encoding="utf-8")
+        text=text.rstrip()+"\n\n"+HOME_JS.strip()+"\n"
+    if MAP_MARK not in text:
+        text=text.rstrip()+"\n\n"+MAP_JS.strip()+"\n"
+    home.write_text(text,encoding="utf-8")
 
     tri=STATIC/"tri_scores.js"
     text=tri.read_text(encoding="utf-8")
     if TRI_MARK not in text:
         tri.write_text(text.rstrip()+"\n\n"+TRI_JS.strip()+"\n",encoding="utf-8")
-
-    appjs=STATIC/"app.js"
-    text=appjs.read_text(encoding="utf-8")
-    if MAP_MARK not in text:
-        appjs.write_text(text.rstrip()+"\n\n"+MAP_JS.strip()+"\n",encoding="utf-8")
 
     css=STATIC/"style.css"
     text=css.read_text(encoding="utf-8")
@@ -337,7 +335,6 @@ def main():
 
     html=STATIC/"app.html"
     text=html.read_text(encoding="utf-8")
-    text=re.sub(r'/static/app\.js\?v=[^"\']+','/static/app.js?v=3.4.0',text)
     text=re.sub(r'/static/student_summary\.js\?v=[^"\']+','/static/student_summary.js?v=3.4.0',text)
     text=re.sub(r'/static/tri_scores\.js\?v=[^"\']+','/static/tri_scores.js?v=3.4.0',text)
     html.write_text(text,encoding="utf-8")

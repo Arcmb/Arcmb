@@ -11,7 +11,6 @@ def main():
     model=(ROOT/"model_data.py").read_text(encoding="utf-8")
     home=(ROOT/"static"/"student_summary.js").read_text(encoding="utf-8")
     tri=(ROOT/"static"/"tri_scores.js").read_text(encoding="utf-8")
-    app=(ROOT/"static"/"app.js").read_text(encoding="utf-8")
     html=(ROOT/"static"/"app.html").read_text(encoding="utf-8")
     css=(ROOT/"static"/"style.css").read_text(encoding="utf-8")
 
@@ -28,10 +27,9 @@ def main():
         require(marker in tri,"Missing TRI-average marker: "+marker)
 
     for marker in ("// === EXAM DATE EDIT V3.4 ===","Editar dados dos mapas","Salvar data","exam-date-update"):
-        require(marker in app,"Missing map-edit UI marker: "+marker)
+        require(marker in home,"Missing map-edit UI marker: "+marker)
 
-    require("/static/app.js?v=3.4.0" in html,"App cache key is missing.")
-    require("/static/student_summary.js?v=3.4.0" in html,"Student summary cache key is missing.")
+    require("/static/student_summary.js?v=3.5.0" in html,"Student summary cache key is missing.")
     require("/static/tri_scores.js?v=3.4.0" in html,"TRI cache key is missing.")
     require("PERFORMANCE REFINEMENT V3.4" in css,"Refinement CSS is missing.")
     compile(model,"model_data.py","exec")
