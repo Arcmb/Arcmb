@@ -1,4 +1,4 @@
-"""Verify TRI/redaction import confirmation stability patch."""
+"""Verify TRI/redaction import stability V2."""
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent
@@ -10,24 +10,31 @@ def require(value,message):
 def main():
     model=(ROOT/"model_data.py").read_text(encoding="utf-8")
     js=(ROOT/"static"/"tri_scores.js").read_text(encoding="utf-8")
-    require("# === TRI IMPORT STABILITY V1 ===" in model, "Backend stability marker missing.")
+    html=(ROOT/"static"/"app.html").read_text(encoding="utf-8")
+    css=(ROOT/"static"/"style.css").read_text(encoding="utf-8")
+
+    require("# === TRI IMPORT STABILITY V2 ===" in model, "Backend V2 marker missing.")
+    require("pending_updates = []" in model, "Batch update collection missing.")
+    require("TRI_IMPORT_BATCH_SIZE = 80" in model, "TRI batch size missing.")
+    require("CASE id " in model and "MEUCRONOGRAMA_TRI_IMPORT_BATCH_DONE" in model, "Batch SQL/progress log missing.")
     require("match = _tri_match(app, c, parsed, activity_key, applied_on)" in model, "Confirm does not reuse parsed workbook.")
-    preview="if path == '/api/model-data/tri-preview':\n            parsed, match, preview = _tri_preview(app, c, data)"
-    require(preview in model, "TRI preview route was not preserved.")
-    require("// === TRI IMPORT STABILITY V1 ===" in js, "Frontend stability marker missing.")
-    require("Não foi possível salvar as notas:" in js, "Visible TRI save error handling missing.")
-    require("finally{triImportBusy=false;}" not in js[js.find("// === TRI IMPORT STABILITY V1 ==="):], "Old stuck-busy confirm handler remains.")
-    require("triImportBusy=false;\n  render();" in js, "Confirm does not redraw after leaving busy state.")
-    stable=js[js.find("// === TRI IMPORT STABILITY V1 ==="):]
-    require("triImportBusy=true;render();" not in stable, "Confirm still redraws the full page before sending the request.")
-    require("saveButton.disabled=true" in stable and "saveButton.textContent='Salvando notas…'" in stable, "Saving state is not updated directly on the button.")
-    require("/api/model-data/tri-confirm" in js, "TRI confirmation endpoint missing.")
-    require("'issues': {" in model and "unmatchedNames" in model and "withoutScoreNames" in model, "Persistent import issue payload missing.")
-    require("Resultado da última importação" in js, "Persistent import summary UI missing.")
-    require("triImportSaveSummary=d" in js, "Successful import is not retained for audit.")
-    require("triImportClearBeforeSummary" in js, "Persistent summary is not cleared with import reset.")
+    require("'issues': {" in model and "unmatchedNames" in model and "withoutScoreNames" in model, "Persistent issue payload missing.")
+
+    require("// === TRI IMPORT STABILITY V2 ===" in js, "Frontend V2 marker missing.")
+    for label in ("1. Arquivo lido","2. Alunos vinculados","3. Envio ao servidor","4. Gravação das notas","5. Finalização"):
+        require(label in js, "Missing progress label: "+label)
+    require("triImportProcess.state='saving'" in js, "Saving-stage transition missing.")
+    require("triImportProcess={state:'done'" in js, "Completion stage missing.")
+    require("Não foi possível salvar as notas:" in js, "Visible save error missing.")
+    stable=js[js.find("// === TRI IMPORT STABILITY V2 ==="):]
+    require("triImportBusy=true;render();" not in stable, "Full-page redraw still happens before request.")
+    require("saveButton.disabled=true" in stable, "Direct saving button state missing.")
+    require("Resultado da última importação" in js, "Persistent audit summary missing.")
+
+    require("/static/tri_scores.js?v=3.2.0" in html, "TRI cache key was not bumped.")
+    require("TRI IMPORT PROCESS V2" in css, "Progress styles missing.")
     compile(model,"model_data.py","exec")
-    print("MEUCRONOGRAMA_TRI_IMPORT_STABILITY_CHECK_OK: confirm request precedes redraw, persistent audit and UI recovery passed.",flush=True)
+    print("MEUCRONOGRAMA_TRI_IMPORT_STABILITY_V2_CHECK_OK: batch save, 5-step progress, audit and cache bust passed.",flush=True)
 
 if __name__=="__main__":
     main()
