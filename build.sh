@@ -74,6 +74,7 @@ python management_refinement_v37_release.py
 python reports_module_release.py
 python hotfix_v371_release.py
 python hotfix_v372_release.py
+python hotfix_v373_release.py
 python site_version_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
