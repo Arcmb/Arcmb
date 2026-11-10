@@ -33,7 +33,7 @@ def main():
     ]:
         require(marker in js, 'Missing student-home marker: ' + marker)
     require('MEU CRONOGRAMA: TRAJETÓRIA ACADÊMICA NA VISÃO GERAL' in css, 'Student-home CSS is missing.')
-    require('/static/student_summary.js?v=2.9.1' in html, 'Student-home cache key is missing.')
+    require('/static/student_summary.js?v=3.3.0' in html, 'Student-home cache key is missing.')
     require('# === MEU CRONOGRAMA: TRAJETÓRIA ACADÊMICA NA VISÃO GERAL ===' in model, 'Student-home backend extension is missing.')
 
     app = App()
