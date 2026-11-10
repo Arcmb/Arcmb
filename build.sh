@@ -65,6 +65,7 @@ python review_start_date_release.py
 python use_guide_release.py
 python academic_year_release.py
 python tri_import_stability_release.py
+python tri_import_token_release.py
 python site_version_release.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt

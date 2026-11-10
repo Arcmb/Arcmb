@@ -33,6 +33,7 @@ python verify_review_start_date.py || exit 46
 python verify_use_guide.py || exit 47
 python verify_academic_year.py || exit 48
 python verify_tri_import_stability.py || exit 49
+python verify_tri_import_token.py || exit 51
 python verify_site_version.py || exit 50
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
