@@ -24,8 +24,8 @@ _REPORT_HEADER_ALIASES={
     'activity':{'atividade','simulado','atividade simulado','nome do simulado','simulado atividade'},
     'type':{'tipo','tipo de relatorio','tipo relatorio','categoria'},
     'url':{'link','url','link de acesso','link acesso','link do relatorio','url do relatorio'},
-    'reportName':{'nome do relatorio','nome relatorio','titulo','titulo do relatorio'},
-    'date':{'data','data de aplicacao','data aplicacao'},
+    'reportName':{'nome do relatorio','nome relatorio','nome do relatorio opcional','titulo','titulo do relatorio'},
+    'date':{'data','data opcional','data de aplicacao','data aplicacao'},
 }
 _REPORT_HEADER_NORMALIZED={
     field:{_reports_header_key(alias) for alias in aliases}

@@ -19,5 +19,6 @@ def main():
     require('/static/student_summary.js?v=3.7.2' in html,'Student summary v3.7.2 cache key missing.')
     require("'activity':{'atividade','simulado','atividade simulado'" in model,'Activity/simulation header alias missing.')
     require("'type':{'tipo','tipo de relatorio'" in model,'Report type header alias missing.')
+    require("nome do relatorio opcional" in model and "data opcional" in model,'Optional report/date headers are missing.')
     print('MEUCRONOGRAMA_HOTFIX_372_CHECK_OK: generated report headers, URL normalization, class propagation UI and aligned TRI axis passed.',flush=True)
 if __name__=='__main__': main()
