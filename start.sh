@@ -50,6 +50,7 @@ python verify_hotfix_v377.py || exit 64
 python verify_hotfix_v378.py || exit 65
 python verify_hotfix_v379.py || exit 66
 python verify_hotfix_v3710_status.py || exit 67
+python verify_hotfix_v3711_management_filter.py || exit 68
 python verify_site_version.py || exit 50
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
