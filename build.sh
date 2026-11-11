@@ -84,5 +84,6 @@ python hotfix_v379_release.py
 python hotfix_v3710_status_release.py
 python hotfix_v3711_management_filter_release.py
 python site_version_release.py
+python finalize_v3711_build.py
 python inspect_ui_build.py
 python -m pip install -r requirements.txt
