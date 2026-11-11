@@ -3,10 +3,23 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent
 PY_MARKER="# === STRICT A-E IMPORT V3.7.9 ==="
+FINAL_MARKER="# === STRICT A-E FINAL OVERRIDE V3.7.9 ==="
+
+FINAL_OVERRIDE=r'''
+# === STRICT A-E FINAL OVERRIDE V3.7.9 ===
+_v379_answer_legacy = _answer
+
+def _answer(value, label='Resposta', *args, **kwargs):
+    text = '' if value is None else str(value).strip().upper()
+    if text in ('A', 'B', 'C', 'D', 'E'):
+        return text
+    return 0
+'''
 
 def main():
     model=ROOT/'model_data.py'
     source=model.read_text(encoding='utf-8')
+
     if PY_MARKER not in source:
         anchor="    text = str(value).strip().upper()\n"
         if source.count(anchor) != 1:
@@ -26,7 +39,11 @@ def main():
             "resposta deve ser A, B, C, D, E, 1, 0, ponto (.), x/x, asterisco (*) ou vazio.",
             "somente A, B, C, D ou E são alternativas válidas; qualquer outro conteúdo é considerado erro (0).",
         )
-        model.write_text(source,encoding='utf-8')
+
+    if FINAL_MARKER not in source:
+        source=source.rstrip()+"\n\n"+FINAL_OVERRIDE.strip()+"\n"
+
+    model.write_text(source,encoding='utf-8')
 
     for path in (ROOT/'static'/'model_data.js', ROOT/'static'/'result_import.js'):
         if not path.exists():
@@ -34,7 +51,7 @@ def main():
         text=path.read_text(encoding='utf-8')
         text=text.replace(
             'Célula em branco, ponto (.), x/x ou asterisco (*) será considerada erro quando houver gabarito válido.',
-            'Somente uma alternativa isolada A, B, C, D ou E é válida. Qualquer outro conteúdo (ex.: A/A, A|A, A | A, x, x/x, números, símbolos ou texto) será considerado erro (0).'
+            'Somente uma alternativa isolada A, B, C, D ou E é válida. Qualquer outro conteúdo (ex.: A/A, A|A, A | A, x, x/x, números, símbolos, texto ou vazio) será considerado erro (0).'
         )
         path.write_text(text,encoding='utf-8')
 
