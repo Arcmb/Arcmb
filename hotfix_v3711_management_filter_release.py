@@ -148,6 +148,12 @@ def main():
         source=vsite.read_text(encoding='utf-8').replace('v3.7.10','v3.7.11').replace('v3.7.9','v3.7.11')
         vsite.write_text(source,encoding='utf-8')
 
+    # Some legacy version normalizers may turn 3.7.11 into 3.7.111 in verifier text.
+    verifier=ROOT/'verify_hotfix_v3711_management_filter.py'
+    if verifier.exists():
+        source=verifier.read_text(encoding='utf-8').replace('v3.7.111','v3.7.11')
+        verifier.write_text(source,encoding='utf-8')
+
     print('MEUCRONOGRAMA_MANAGEMENT_FILTER_FIX_READY: query scalars, safe arrays and filtered TRI averages installed.',flush=True)
 
 if __name__=='__main__':
