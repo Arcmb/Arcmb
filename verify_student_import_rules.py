@@ -9,8 +9,15 @@ def require(condition, message):
 
 
 def main():
-    for marker in ('.', 'x/x', 'X/X', '*'):
-        require(M._answer(marker, 'Resposta') == 0, marker + ' must be converted to error zero.')
+    for valid in ('A', 'B', 'C', 'D', 'E', 'a', 'b', 'c', 'd', 'e'):
+        require(M._answer(valid, 'Resposta') == valid.upper(), valid + ' must remain a valid isolated alternative.')
+
+    for marker in (
+        '', '.', '*', '0', '1', 'x', 'x/x', 'X/X',
+        'A/A', 'A|A', 'A | A', 'A/B', 'B|C', 'C - D',
+        'AB', 'A B', 'ANULADA', 'ERRO',
+    ):
+        require(M._answer(marker, 'Resposta') == 0, repr(marker) + ' must be converted to error zero.')
 
     accounts = [
         {'id': 'student-a', 'name': 'Áluno da Silva', 'username': 'acesso_errado', 'role': 'aluno'},
@@ -33,9 +40,9 @@ def main():
 
     js = (Path(__file__).resolve().parent / 'static' / 'model_data.js').read_text(encoding='utf-8')
     require("result-import-help-results" in js and "result-import-help-map" in js, 'Help buttons are missing.')
-    require('ponto (.), x/x ou asterisco (*)' in js, 'Error-marker guidance is missing.')
+    require('Somente uma alternativa isolada A, B, C, D ou E é válida.' in js, 'Strict A-E guidance is missing.')
     require('procura primeiro o nome completo' in js, 'Name-first guidance is missing.')
-    print('MEUCRONOGRAMA_STUDENT_IMPORT_RULES_CHECK_OK: name-first binding, account filtering, error markers and help buttons passed.', flush=True)
+    print('MEUCRONOGRAMA_STUDENT_IMPORT_RULES_CHECK_OK: name-first binding, strict isolated A-E rule, universal non-A-E error conversion and help buttons passed.', flush=True)
 
 
 if __name__ == '__main__':
