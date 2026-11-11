@@ -46,16 +46,17 @@ def _tri_token_secret():
         raise RuntimeError('SECRET_KEY ausente; não é possível assinar a importação.')
     return secret.encode('utf-8')
 
-def _tri_make_import_token(match, parsed, activity_key, applied_on, user):
+def _tri_make_import_token(pairs, parsed, activity_key, applied_on, user, final=True):
     now = int(_tri_tok_time.time())
     records = []
-    for pair in match.get('matched', []):
+    for pair in pairs:
         records.append({
             'id': str(pair['target']['id']),
             'scores': pair['source'].get('scores') or {},
         })
     payload = {
         'v': 1,
+        'final': final,
         'actor': str(user.get('id') or ''),
         'activityKey': str(activity_key or ''),
         'date': str(applied_on or ''),
@@ -95,7 +96,7 @@ def _tri_read_import_token(token, user):
         raise ValueError('Quantidade de registros acima do limite de segurança.')
     return payload
 
-def _tri_token_fetch_targets(app, c, ids):
+def _tri_token_fetch_targets(app, c, ids, lock=False):
     rows = {}
     for offset in range(0, len(ids), 500):
         chunk = ids[offset:offset + 500]
@@ -104,6 +105,8 @@ def _tri_token_fetch_targets(app, c, ids):
             'SELECT id,activity_key,applied_on,metadata FROM hmay_performance '
             'WHERE id IN (' + placeholders + ')'
         )
+        if lock and not app.db.local_path:
+            query += ' ORDER BY id FOR UPDATE'
         for row in app.db.execute(c, query, tuple(chunk)).fetchall():
             item = dict(row)
             rows[str(item['id'])] = item
@@ -115,7 +118,11 @@ def _tri_token_verify_metadata(app, c, ids, records):
     actual = {key: 0 for key in _TRI_TOKEN_SCORE_TO_META}
     source_by_id = {str(item['id']): item.get('scores') or {} for item in records}
     for record_id, scores in source_by_id.items():
-        metadata = _rx_json((targets.get(record_id) or {}).get('metadata'))
+        if record_id not in targets:
+            raise ValueError('Um resultado deixou de existir durante a gravação.')
+        metadata = _rx_json(targets[record_id].get('metadata'))
+        if _tri_apply_metadata(dict(metadata), scores, '', {'id': ''}):
+            raise ValueError('As notas lidas no banco diferem das notas enviadas.')
         for score_key, meta_key in _TRI_TOKEN_SCORE_TO_META.items():
             source_value = scores.get(score_key)
             if source_value is None or source_value == '':
@@ -133,6 +140,22 @@ def _tri_token_verify_metadata(app, c, ids, records):
 _tri_token_original_handle = handle
 
 def handle(app, c, user, path, method, data, query, start, HTTPError):
+    if path == '/api/model-data/tri-coverage' and method == 'GET':
+        _rx_role_guard(user, HTTPError)
+        json_field = ("json_extract(p.metadata, '$.%s')" if app.db.local_path
+                      else "(p.metadata::jsonb ->> '%s')")
+        stamp = json_field % '_tri_imported_at'
+        exam = json_field % '_exam_id'
+        rows = app.db.execute(c, (
+            "SELECT MIN(p.activity) AS activity, p.applied_on AS date, "
+            "COUNT(DISTINCT p.user_id) AS total, "
+            f"COUNT(DISTINCT CASE WHEN NULLIF({stamp}, '') IS NOT NULL THEN p.user_id END) AS saved "
+            "FROM hmay_performance p JOIN hmay_users u ON u.id=p.user_id "
+            f"WHERE u.role IN ('user','aluno') AND NULLIF({exam}, '') IS NOT NULL "
+            "GROUP BY p.activity_key, p.applied_on ORDER BY p.applied_on DESC, MIN(p.activity)"
+        )).fetchall()
+        return app.reply(start, 200, {'simulations': [dict(row) for row in rows]})
+
     if path == '/api/model-data/tri-preview':
         _rx_role_guard(user, HTTPError)
         parsed, match, preview = _tri_preview(app, c, data)
@@ -141,9 +164,18 @@ def handle(app, c, user, path, method, data, query, start, HTTPError):
         preview['unmatchedNames'] = match['unmatched'][:50]
         preview['conflictRows'] = match['conflicts'][:50]
         preview['withoutScoreNames'] = match['withoutScore'][:50]
-        preview['importToken'] = _tri_make_import_token(
-            match, parsed, activity_key, applied_on, user
-        )
+        pairs = match['matched']
+        if len(pairs) > 5000:
+            raise ValueError('A conferência excede o limite de 5.000 registros.')
+        if data.get('batchMode') is True:
+            preview['batches'] = []
+            for offset in range(0, len(pairs), _TRI_TOKEN_BATCH_SIZE):
+                batch = pairs[offset:offset + _TRI_TOKEN_BATCH_SIZE]
+                token = _tri_make_import_token(batch, parsed, activity_key, applied_on, user,
+                                               final=(offset + len(batch) == len(pairs)))
+                preview['batches'].append({'count': len(batch), 'importToken': token})
+        else:
+            preview['importToken'] = _tri_make_import_token(pairs, parsed, activity_key, applied_on, user)
         preview['tokenExpiresMinutes'] = _TRI_TOKEN_TTL_SECONDS // 60
         print(
             f'MEUCRONOGRAMA_TRI_TOKEN_PREVIEW matched={len(match["matched"])} token_records={len(match["matched"])}',
@@ -190,7 +222,7 @@ def handle(app, c, user, path, method, data, query, start, HTTPError):
         if any(not item for item in ids) or len(set(ids)) != len(ids):
             raise ValueError('O pacote contém identificadores inválidos ou duplicados.')
 
-        targets = _tri_token_fetch_targets(app, c, ids)
+        targets = _tri_token_fetch_targets(app, c, sorted(ids), lock=True)
         if len(targets) != len(ids):
             raise ValueError('Um ou mais resultados vinculados não existem mais no banco.')
 
@@ -254,7 +286,8 @@ def handle(app, c, user, path, method, data, query, start, HTTPError):
         if mismatches:
             raise RuntimeError('A verificação final das notas no banco não coincidiu com o pacote enviado.')
 
-        app.event(c, user, user['id'], 'tri_scores_import')
+        if payload.get('final', True):
+            app.event(c, user, user['id'], 'tri_scores_import')
         print(
             f'MEUCRONOGRAMA_TRI_TOKEN_DONE updated={updated} unchanged={unchanged} verified={len(records)}',
             flush=True,
@@ -278,150 +311,151 @@ def handle(app, c, user, path, method, data, query, start, HTTPError):
 
 FRONTEND = r'''
 // === TRI IMPORT TOKEN V1 ===
-acts['tri-import-preview']=async()=>{
- const sim=triSelectedSimulation();if(!sim)throw new Error('Selecione o simulado que receberá as notas.');
- triImportDraft.simulationId=sim.id;triImportBusy=true;
- try{
-  triImportPreviewData=await api('/api/model-data/tri-preview',{
-   file:triImportDraft.file,
-   filename:triImportDraft.filename,
-   activityKey:sim.activityKey,
-   date:sim.date
-  });
-  if(!triImportPreviewData||!triImportPreviewData.importToken)throw new Error('O servidor não devolveu o pacote seguro da importação.');
-  triImportDraft.importToken=triImportPreviewData.importToken;
-  triImportProcess={
-   state:'preview',
-   matched:triImportPreviewData.matched||0,
-   students:triImportPreviewData.students||0
-  };
-  render();
- }finally{triImportBusy=false;}
-};
-
-function triImportProcessHtml(){
- const p=triImportProcess;
- const inspection=triImportDraft?.inspection;
- const preview=triImportPreviewData;
- if(!inspection&&!p)return '<div id="tri-import-process"></div>';
- const matched=Number(p?.matched??preview?.matched??0);
- const students=Number(p?.students??preview?.students??0);
- const received=Number(p?.received??0);
- const verified=Number(p?.verified??0);
- const state=p?.state||'preview';
- const errorStage=Number(p?.errorStage||0);
-
- const isDone=n=>{
-  if(state==='done')return true;
-  if(state==='saving'||state==='received')return n<=3;
-  if(state==='sending')return n<=2;
-  if(state==='preview')return n<=2;
-  if(state==='error')return n<errorStage;
-  return false;
- };
- const isActive=n=>{
-  if(state==='sending'&&n===3)return true;
-  if((state==='received'||state==='saving')&&n===4)return true;
-  if(state==='error'&&n===errorStage)return true;
-  return false;
- };
- const cls=n=>isDone(n)?'done':isActive(n)?(state==='error'?'error':'active'):'pending';
- const icon=n=>isDone(n)?'✓':isActive(n)?(state==='error'?'!':'…'):String(n);
-
- let note3=matched?matched+' registro(s) preparados para envio.':'Dados preparados para envio.';
- if(state==='sending')note3='Enviando '+matched+' registro(s) ao servidor…';
- if(received>0)note3=received+'/'+matched+' registro(s) recebidos e validados pelo servidor.';
- if(state==='error'&&errorStage===3)note3='O servidor não confirmou o recebimento dos registros.';
-
- let note4='Aguardando a confirmação de recebimento do servidor.';
- if(state==='received')note4='Recebimento confirmado. Iniciando gravação de '+received+' registro(s).';
- if(state==='saving')note4='Servidor gravando '+received+' registro(s) no banco online.';
- if(state==='done')note4=(p?.updated??0)+' atualizado(s) e '+(p?.unchanged??0)+' sem alteração.';
- if(state==='error'&&errorStage===4)note4='Falha durante a gravação no banco online.';
-
- let note5='Aguardando verificação final no banco.';
- if(state==='done')note5=verified+' registro(s) confirmados no banco online.';
- if(state==='error'&&errorStage===5)note5='A verificação final não foi concluída.';
-
- return '<section class="tri-import-process-card"><h3>Etapas da importação</h3>'+
-  '<div class="tri-import-step '+cls(1)+'"><span>'+icon(1)+'</span><div><strong>1. Arquivo lido</strong><small>'+esc(inspection?.sheet||'Planilha reconhecida')+'</small></div></div>'+
-  '<div class="tri-import-step '+cls(2)+'"><span>'+icon(2)+'</span><div><strong>2. Alunos vinculados</strong><small>'+matched+'/'+students+' aluno(s) vinculados ao simulado.</small></div></div>'+
-  '<div class="tri-import-step '+cls(3)+'"><span>'+icon(3)+'</span><div><strong>3. Envio ao servidor</strong><small>'+note3+'</small></div></div>'+
-  '<div class="tri-import-step '+cls(4)+'"><span>'+icon(4)+'</span><div><strong>4. Gravação das notas</strong><small>'+note4+'</small></div></div>'+
-  '<div class="tri-import-step '+cls(5)+'"><span>'+icon(5)+'</span><div><strong>5. Finalização</strong><small>'+note5+'</small></div></div>'+
-  '</section>';
+function triPercent(count,total){
+ if(!total)return '0%';
+ const value=count===total?100:Math.min(99.9,Math.round(1000*count/total)/10);
+ return value.toLocaleString('pt-BR')+'%';
 }
 
-acts['tri-import-confirm']=async()=>{
+let triCoverage=null;
+let triCoverageLoading=false;
+function triCoverageHtml(){
+ if(!triCoverage)return '';
+ if(triCoverage.error)return '<p role="alert">'+esc(triCoverage.error)+'</p>';
+ if(!triCoverage.length)return '<p>Nenhum simulado com resultados cadastrados.</p>';
+ const rows=triCoverage.map(row=>'<tr><td>'+esc(row.activity)+'</td><td>'+esc(br(row.date))+'</td><td>'+row.total+'</td><td>'+row.saved+'</td><td>'+triPercent(row.saved,row.total)+'</td></tr>').join('');
+ return '<div class="table-wrap"><table><caption>Alunos com importação de notas TRI/Redação registrada no banco</caption><thead><tr><th>Simulado</th><th>Aplicação</th><th>Participantes</th><th>Com notas importadas</th><th>% do simulado</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+async function triLoadCoverage(){
+ if(triCoverageLoading)return;
+ triCoverageLoading=true;
+ try{triCoverage=(await api('/api/model-data/tri-coverage')).simulations;}
+ catch(error){triCoverage={error:error.message};}
+ finally{
+  triCoverageLoading=false;
+  const el=document.getElementById('tri-coverage');
+  if(el)el.innerHTML=triCoverageHtml();
+ }
+}
+acts['tri-coverage']=triLoadCoverage;
+
+acts['tri-import-preview']=async()=>{
+ if(triImportBusy)return;
  const sim=triSelectedSimulation();
- if(!sim||!triImportPreviewData)throw new Error('Gere a conferência antes de confirmar.');
- const importToken=(triImportDraft&&triImportDraft.importToken)||triImportPreviewData.importToken;
- if(!importToken)throw new Error('Pacote seguro ausente. Faça a conferência novamente.');
- if(!confirm('Salvar as notas conferidas de '+sim.activity+' ('+sim.date+')?'))return;
-
- const expected=Number(triImportPreviewData.matched||0);
+ if(!sim)throw new Error('Selecione o simulado que receberá as notas.');
+ triImportDraft.simulationId=sim.id;
+ triImportPreviewData=null;
+ triImportProcess=null;
+ triImportSaveSummary=null;
  triImportBusy=true;
- triImportProcess={
-  state:'sending',
-  matched:expected,
-  students:Number(triImportPreviewData.students||0),
-  received:0,
-  verified:0
- };
- triImportUpdateProcessDom();
- const saveButton=document.querySelector('[data-act="tri-import-confirm"]');
- if(saveButton){saveButton.disabled=true;saveButton.textContent='Enviando '+expected+' registros…';}
-
- let confirmedReceived=false;
+ render();
  try{
-  const receipt=await api('/api/model-data/tri-confirm-prepare',{importToken});
-  const received=Number(receipt?.receivedRecords||0);
-  if(!receipt?.ready||received!==expected){
-   throw new Error('O servidor confirmou '+received+' de '+expected+' registros. A gravação foi cancelada.');
+  const preview=await api('/api/model-data/tri-preview',{
+   file:triImportDraft.file,filename:triImportDraft.filename,
+   activityKey:sim.activityKey,date:sim.date,batchMode:true
+  });
+  if(!Array.isArray(preview.batches)||preview.batches.some(b=>!b.importToken||!Number.isInteger(b.count)||b.count<1)||
+     preview.batches.reduce((n,b)=>n+b.count,0)!==preview.matched){
+   throw new Error('O servidor não confirmou os lotes desta prévia. Confira os vínculos novamente.');
   }
-
-  confirmedReceived=true;
-  triImportProcess={...triImportProcess,state:'received',received};
-  triImportUpdateProcessDom();
-  if(saveButton)saveButton.textContent='Recebidos '+received+' · gravando…';
-
-  triImportProcess={...triImportProcess,state:'saving'};
-  triImportUpdateProcessDom();
-
-  const d=await api('/api/model-data/tri-confirm',{importToken});
-  if(typeof studentSummaryCache!=='undefined')studentSummaryCache?.clear?.();
-  if(typeof resultExportSimulations!=='undefined')resultExportSimulations=null;
-  triImportSaveSummary=d;
-  const verified=Number(d.verifiedRecords!=null?d.verifiedRecords:((d.summary&&d.summary.matched)||0));
-  triImportProcess={
-   state:'done',
-   matched:expected,
-   students:triImportProcess.students||0,
-   received,
-   verified,
-   updated:Number(d.summary?.updated||0),
-   unchanged:Number(d.summary?.unchanged||0)
-  };
-  triImportPreviewData=null;
-  if(triImportDraft)triImportDraft.importToken=null;
-  toast('Importação concluída: '+verified+' registro(s) confirmados no banco.');
- }catch(error){
-  const message=(error&&error.message)||'erro inesperado ao gravar as notas';
-  triImportProcess={
-   ...(triImportProcess||{}),
-   state:'error',
-   errorStage:confirmedReceived?4:3
-  };
-  toast('Não foi possível concluir a importação: '+message,true);
+  triImportPreviewData=preview;
+  triImportProcess={state:'preview',matched:preview.matched,students:preview.students,
+   received:0,verified:0,updated:0,unchanged:0,nextBatch:0};
  }finally{
   triImportBusy=false;
   render();
  }
 };
 
+function triImportProcessHtml(){
+ const p=triImportProcess;
+ if(!triImportDraft?.inspection||!p)return '';
+ const step=(n,label,note,complete,active=false,failed=false)=>{
+  const cls=failed?'error':complete?'done':active?'active':'pending';
+  const icon=failed?'!':complete?'✓':active?'…':String(n);
+  return '<div class="tri-import-step '+cls+'"><span>'+icon+'</span><div><strong>'+n+'. '+label+'</strong><small>'+note+'</small></div></div>';
+ };
+ const total=p.matched;
+ const meter=(count,label)=>{
+  const text=count+' de '+total+' ('+triPercent(count,total)+')';
+  return text+'<progress aria-label="'+label+'" aria-valuetext="'+text+'" value="'+count+'" max="'+Math.max(total,1)+'"></progress>';
+ };
+ const done=p.state==='done';
+ let message='Aguardando confirmação da gravação.';
+ if(!total)message='Nenhum resultado vinculado para enviar.';
+ if(done)message=p.verified+' confirmados no banco. '+p.updated+' atualizados e '+p.unchanged+' já conferiam com a planilha.';
+ if(p.state==='error')message=esc(p.error)+' Confira os totais acima. Use Retomar envio ou faça uma nova conferência se a prévia expirou.';
+ return '<section class="tri-import-process-card"><h3>Etapas da importação</h3>'+
+  step(1,'Arquivo lido',esc(triImportDraft.inspection.sheet||'Planilha reconhecida'),true)+
+  step(2,'Alunos vinculados',p.matched+' de '+p.students+' alunos do simulado.',true)+
+  step(3,'Envio ao servidor','Recebidos pelo servidor: '+meter(p.received,'Resultados recebidos pelo servidor'),total>0&&p.received===total,p.state==='sending',p.state==='error'&&p.stage===3)+
+  step(4,'Gravação das notas','Confirmados no banco: '+meter(p.verified,'Resultados confirmados no banco'),done,p.state==='saving',p.state==='error'&&p.stage===4)+
+  step(5,'Finalização',message,done)+'</section>';
+}
+
+acts['tri-import-confirm']=async()=>{
+ if(triImportBusy)return;
+ const sim=triSelectedSimulation(),preview=triImportPreviewData,p=triImportProcess;
+ if(!sim||!preview||!p||sim.id!==triImportDraft.simulationId)throw new Error('Confira os vínculos antes de enviar.');
+ if(!p.matched)throw new Error('Não há resultados vinculados para enviar.');
+ if(!confirm('Salvar as notas conferidas de '+sim.activity+' ('+br(sim.date)+')?'))return;
+ triImportBusy=true;
+ p.state='sending';
+ render();
+ try{
+  while(p.nextBatch<preview.batches.length){
+   const {importToken,count}=preview.batches[p.nextBatch];
+   p.stage=3;
+   p.state='sending';
+   triImportUpdateProcessDom();
+   const receipt=await api('/api/model-data/tri-confirm-prepare',{importToken});
+   if(!receipt.ready||receipt.receivedRecords!==count)throw new Error('O servidor não confirmou o recebimento do lote.');
+   p.received=p.verified+count;
+   p.stage=4;
+   p.state='saving';
+   triImportUpdateProcessDom();
+   const result=await api('/api/model-data/tri-confirm',{importToken});
+   const {updated,unchanged}=result.summary||{};
+   if(result.verifiedRecords!==count||!Number.isInteger(updated)||!Number.isInteger(unchanged)||
+      updated<0||unchanged<0||updated+unchanged!==count){
+    throw new Error('Falta a confirmação da gravação deste lote.');
+   }
+   p.verified+=count;
+   p.updated+=updated;
+   p.unchanged+=unchanged;
+   p.nextBatch++;
+   triImportUpdateProcessDom();
+  }
+  p.state='done';
+  triImportSaveSummary={summary:{updated:p.updated,unchanged:p.unchanged,unmatched:preview.unmatched,
+   conflicts:preview.conflicts,withoutScore:preview.withoutScore},issues:preview};
+  triImportPreviewData=null;
+  toast('Importação concluída: '+p.verified+' resultados confirmados no banco.');
+ }catch(error){
+  p.state='error';
+  p.error=error.message||'A conexão foi interrompida.';
+  toast(p.error,true);
+ }finally{
+  triImportBusy=false;
+  if(p.verified){
+   if(typeof studentSummaryCache!=='undefined')studentSummaryCache?.clear?.();
+   if(typeof resultExportSimulations!=='undefined')resultExportSimulations=null;
+   if(typeof managementDashboardCache!=='undefined')managementDashboardCache=null;
+   if(typeof managementClassAnalyticsCache!=='undefined'){
+    managementClassAnalyticsCache=null;
+    managementClassDetailCache.clear();
+    managementStudentDetailCache.clear();
+   }
+  }
+  render();
+  if(triCoverage)await triLoadCoverage();
+ }
+};
+
 document.addEventListener('change',event=>{
- if(event.target&&event.target.name==='tri-import-simulation'&&triImportDraft){
-  triImportDraft.importToken=null;
+ if(event.target?.name==='tri-import-simulation'){
+  triImportProcess=null;
+  triImportSaveSummary=null;
  }
 },true);
 '''
@@ -436,6 +470,9 @@ def main():
     js=ROOT/"static"/"tri_scores.js"
     js_text=js.read_text(encoding="utf-8")
     if FRONTEND_MARK not in js_text:
+        # The inspect action must release the controls before its final render.
+        js_text = js_text.replace('triImportPreviewData=null;render();}finally{triImportBusy=false;}',
+                                  'triImportPreviewData=null;}finally{triImportBusy=false;render();}')
         js_text=js_text.rstrip()+"\n\n"+FRONTEND.strip()+"\n"
         js.write_text(js_text,encoding="utf-8")
 

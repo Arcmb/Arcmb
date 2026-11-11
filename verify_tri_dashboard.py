@@ -34,7 +34,7 @@ def main():
     ):
         require(marker in home,"Missing home TRI marker: "+marker)
     require("1º" not in home[home.find("// === TRI HOME DASHBOARD V3.3 ==="):],"Ordinal simulation labels still exist in TRI home override.")
-    require("/static/tri_scores.js?v=3.4.0" in html,"TRI dashboard cache key is missing.")
+    require("/static/tri_scores.js?v=3.7.14" in html,"TRI dashboard cache key is missing.")
     require("/static/student_summary.js?v=3.7.0" in html,"Student summary cache key is missing.")
     require("TRI DASHBOARD V3.3" in css,"TRI dashboard CSS is missing.")
     compile(model,"model_data.py","exec")

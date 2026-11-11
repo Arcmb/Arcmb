@@ -22,15 +22,15 @@ def main():
 
     require("// === TRI IMPORT TOKEN V1 ===" in js,"Frontend token flow missing.")
     token_section=js[js.find("// === TRI IMPORT TOKEN V1 ==="):]
-    require("triImportDraft.importToken=triImportPreviewData.importToken" in token_section,"Preview token is not retained.")
+    require("const {importToken,count}=preview.batches[p.nextBatch]" in token_section,"Preview token is not retained.")
     require("api('/api/model-data/tri-confirm-prepare',{importToken})" in token_section,"Receipt confirmation endpoint is not called.")
     require("api('/api/model-data/tri-confirm',{importToken})" in token_section,"Confirm does not use importToken.")
     confirm_section=token_section[token_section.find("acts['tri-import-confirm']"):]
     require("file:triImportDraft.file" not in confirm_section,"Confirm still re-sends the XLSX.")
-    require("registro(s) recebidos e validados pelo servidor." in token_section,"Visible server receipt count is missing.")
-    require("Gravando no banco" in token_section or "gravando" in token_section,"Visible database stage missing.")
+    require("Recebidos pelo servidor:" in token_section,"Visible server receipt count is missing.")
+    require("Confirmados no banco:" in token_section,"Visible database stage missing.")
     require("Importação concluída:" in token_section,"Final verified message missing.")
-    require("/static/tri_scores.js?v=3.4.0" in html,"TRI asset cache key was not bumped.")
+    require("/static/tri_scores.js?v=3.7.14" in html,"TRI asset cache key was not bumped.")
 
     compile(model,"model_data.py","exec")
     print("MEUCRONOGRAMA_TRI_IMPORT_TOKEN_CHECK_OK: signed receipt confirmation with counts, no XLSX re-upload, batch persistence and final verification passed.",flush=True)

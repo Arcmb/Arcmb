@@ -336,7 +336,7 @@ def main():
     html=STATIC/"app.html"
     text=html.read_text(encoding="utf-8")
     text=re.sub(r'/static/student_summary\.js\?v=[^"\']+','/static/student_summary.js?v=3.4.0',text)
-    text=re.sub(r'/static/tri_scores\.js\?v=[^"\']+','/static/tri_scores.js?v=3.4.0',text)
+    text=re.sub(r'/static/tri_scores\.js\?v=[^"\']+','/static/tri_scores.js?v=3.7.14',text)
     html.write_text(text,encoding="utf-8")
 
     print("MEUCRONOGRAMA_PERFORMANCE_REFINEMENT_READY: overview totals/TRI, latest disciplines, selected TRI averages and safe exam-date editing installed.",flush=True)
