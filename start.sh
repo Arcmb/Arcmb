@@ -52,6 +52,7 @@ python verify_hotfix_v379.py || exit 66
 python verify_hotfix_v3710_status.py || exit 67
 python verify_hotfix_v3711_management_filter.py || exit 68
 python verify_hotfix_v3712_class_analytics.py || exit 69
+python verify_hotfix_v3713_sort.py || exit 70
 python verify_site_version.py || exit 50
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
