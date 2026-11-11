@@ -6,8 +6,7 @@ ROOT=Path(__file__).resolve().parent
 TARGET='3.7.12'
 
 def normalize(text):
-    text=re.sub(r'v3\.7\.12\d+', 'v'+TARGET, text)
-    text=text.replace('student_summary.js?v=3.7.121','student_summary.js?v='+TARGET)
+    text=re.sub(r'3\.7\.12\d+', TARGET, text)
     return text
 
 def main():
