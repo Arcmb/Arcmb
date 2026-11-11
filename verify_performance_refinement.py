@@ -16,8 +16,9 @@ def main():
 
     require("# === PERFORMANCE REFINEMENT V3.4 ===" in model,"Backend refinement marker missing.")
     require("/api/model-data/exam-edit-list" in model and "/api/model-data/exam-date-update" in model,"Map date-edit routes are missing.")
-    require("_exam_id" in model and "updatedResults" in model,"Linked-result propagation is missing.")
-    require("resultado duplicado" in model,"Date conflict protection is missing.")
+    metadata=(ROOT/"exam_metadata.py").read_text(encoding="utf-8")
+    require("_exam_id" in metadata and "updatedResults" in metadata,"Linked-result propagation is missing.")
+    require("resultado duplicado" in metadata,"Date conflict protection is missing.")
 
     for marker in ("// === PERFORMANCE OVERVIEW V3.4 ===","acertos acumulados","TRI geral mais recente","Redação","Todas as disciplinas de"):
         require(marker in home,"Missing overview marker: "+marker)
@@ -26,7 +27,7 @@ def main():
     for marker in ("// === TRI AVERAGE V3.4 ===","Média dos simulados selecionados","triDashboardAverage","Último simulado realizado"):
         require(marker in tri,"Missing TRI-average marker: "+marker)
 
-    for marker in ("// === EXAM DATE EDIT V3.4 ===","Editar dados dos mapas","Salvar data","exam-date-update"):
+    for marker in ("exam-metadata-edit","Editar dados do simulado","Salvar alterações","exam-metadata-update"):
         require(marker in home,"Missing map-edit UI marker: "+marker)
 
     require("/static/student_summary.js?v=3.7.0" in html,"Student summary cache key is missing.")

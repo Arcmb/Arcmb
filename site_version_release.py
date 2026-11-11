@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 
 ROOT=Path(__file__).resolve().parent
-PUBLIC_VERSION = "3.7.14"
+PUBLIC_VERSION = "3.7.15"
 
 def main():
     path=ROOT/"static"/"app.html"
@@ -13,6 +13,9 @@ def main():
     html=re.sub(r"(?i)\bv\.?\s*2\.8(?:\.1)?\b", f"v{PUBLIC_VERSION}", html)
     html=re.sub(r"(?i)Meu Cronograma(?: Qi)?\s+2\.8(?:\.1)?\b", f"Meu Cronograma Qi v{PUBLIC_VERSION}", html)
     html=html.replace("Meu Cronograma v"+PUBLIC_VERSION, "Meu Cronograma Qi v"+PUBLIC_VERSION)
+    # The map UI is split across two bundles whose base cache keys belong to earlier releases.
+    html=re.sub(r'(/static/(?:student_summary|selective)\.js\?v=[^"&]+)(?:&amp;map=[^"]+)?(")',
+                rf'\1&amp;map={PUBLIC_VERSION}\2', html)
     path.write_text(html,encoding="utf-8")
 
     # Keep the legacy selective verifier functional, but align only its
