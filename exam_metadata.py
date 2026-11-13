@@ -7,6 +7,10 @@ import performance as F
 import planner as P
 
 
+def can_edit(user):
+    return user['role'] in ('master', 'coordenador')
+
+
 def identity_key(title, date, color):
     return hashlib.sha256(E.enc([F.norm(title), date, F.norm(color)]).encode()).hexdigest()
 
@@ -62,7 +66,7 @@ def exam_link(app, column):
 def catalogue(app, c, user):
     link = exam_link(app, 'metadata')
     rows = app.db.execute(c, f"""
-        SELECT e.id, e.title, e.applied_on, e.color, e.area, e.owner_id, e.version,
+        SELECT e.id, e.title, e.applied_on, e.color, e.area, e.version,
                COALESCE(p.results, 0) AS results
         FROM hmay_exams e LEFT JOIN (
             SELECT {link} AS exam_id, COUNT(*) AS results FROM hmay_performance GROUP BY 1
@@ -72,7 +76,7 @@ def catalogue(app, c, user):
     return [dict(id=row['id'], title=row['title'], date=row['applied_on'],
                  applied_on=row['applied_on'], color=row['color'], area=row['area'],
                  version=row['version'], linkedResults=row['results'],
-                 canEdit=user['role']=='master' or row['owner_id']==user['id']) for row in rows]
+                 canEdit=can_edit(user)) for row in rows]
 
 
 def _update_results(app, c, exam, title, date, color, stamp):
@@ -100,9 +104,11 @@ def _update_results(app, c, exam, title, date, color, stamp):
 
 
 def update(app, c, user, data, HTTPError, date_only=False):
+    if not can_edit(user):
+        raise HTTPError(403, 'A edição dos mapas é exclusiva do Master e da coordenação.')
     exam_id = F.text(data.get('examId'), 160)
     lock = '' if app.db.local_path else ' FOR UPDATE'
-    row = app.db.execute(c, 'SELECT id, owner_id, title, applied_on, color, area, version, identity_key '
+    row = app.db.execute(c, 'SELECT id, title, applied_on, color, area, version, identity_key '
                          'FROM hmay_exams WHERE id=?'+lock, (exam_id,)).fetchone()
     if not row:
         raise HTTPError(404, 'Este caderno não foi encontrado.')
@@ -122,9 +128,6 @@ def update(app, c, user, data, HTTPError, date_only=False):
             raise ValueError('Informe o nome do simulado e a cor. Para caderno sem cor, use Única.')
         if area not in ('', 'LC', 'CH', 'CN', 'MT'):
             raise ValueError('Escolha uma área válida ou deixe sem área padrão.')
-        if (user['role'] != 'master' and user['id'] != exam['owner_id']
-                and (title, color, area) != (exam['title'], exam['color'], exam['area'])):
-            raise HTTPError(403, 'Somente o Master ou o responsável pelo mapa pode alterar nome, cor e área.')
     identity = identity_key(title, date, color)
     changed = (title,date,color,area,identity) != (exam['title'],exam['applied_on'],exam['color'],exam['area'],exam['identity_key'])
     result = dict(examId=exam_id, title=title, color=color, area=area, oldDate=exam['applied_on'],

@@ -1,12 +1,14 @@
 """Run after building the site: python -m unittest discover -s tests -p test_exam_metadata.py."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import base64
 import json
 import unittest
 
 import exam_metadata as maps
 import model_data
 from webapp import App, HTTPError
+from verify_release import Client
 
 
 class MapMetadataTests(unittest.TestCase):
@@ -21,7 +23,8 @@ class MapMetadataTests(unittest.TestCase):
             self.date='2026-06-14'
             self.old_key=maps.identity_key('Simulado',self.old_date,'Azul')
             self.eid='md_'+self.old_key[:32]
-            self.items=[{'number':1,'area':'LC','language':'','answer':'A'}]
+            self.items=[dict(number=1,area='LC',language='',answer='A',discipline='Português',
+                             topic='',subject='',skill='')]
             c.execute('INSERT INTO hmay_exams VALUES (?,?,?,?,?,?,?,?,?,?)',
                       (self.eid,self.old_key,self.user['id'],'Simulado',self.date,'Azul','',
                        json.dumps(self.items),1,self.date))
@@ -29,6 +32,41 @@ class MapMetadataTests(unittest.TestCase):
             self.grades={'COR DA PROVA':'Azul','_exam_id':self.eid,'_tri_lc':610,'_tri_redaction':960}
             c.execute('INSERT INTO hmay_performance VALUES (?,?,?,?,?,?,?,?,?)',
                       ('r',student,'simulado','Simulado',self.date,'{}',json.dumps(self.grades),1,self.date))
+
+    def test_coordinator_edits_and_complements_another_users_map(self):
+        password = 'LocalCoordinator2026!'
+        login = 'coordenacao.teste'
+        with self.app.db.connection(write=True) as c:
+            self.app.db.create_user(c, login, 'Coordenação', password, 'coordenador', False)
+            self.app.db.create_user(c, 'estudante.teste', 'Estudante', password, 'aluno', False)
+        staff = Client(self.app, 'testserver')
+        staff.login(login, password)
+        for path in ('/api/model-data/exam-edit-list', '/api/exams'):
+            response = staff.request(path)
+            self.assertEqual(response['status'], 200)
+            self.assertTrue(response['data']['exams'][0]['canEdit'])
+        change = dict(examId=self.eid, version=1, title='Simulado revisado', date=self.date,
+                      color='Verde', area='CN')
+        saved = staff.request('/api/model-data/exam-metadata-update', change)
+        self.assertEqual(saved['status'], 200, saved['data'])
+        self.assertEqual(saved['data']['updatedResults'], 1)
+
+        csv = 'QUESTÃO;DISCIPLINA;ÁREA;GABARITO\n2;Química;CN;B\n'
+        upload = dict(change, filename='complemento.csv', file=base64.b64encode(csv.encode()).decode())
+        preview = staff.request('/api/exams/preview', upload)
+        self.assertEqual(preview['status'], 200, preview['data'])
+        commit = staff.request('/api/exams/confirm', dict(upload, token=preview['data']['token']))
+        self.assertEqual(commit['status'], 200, commit['data'])
+        with self.app.db.connection() as c:
+            row = c.execute('SELECT owner_id,title,color,items FROM hmay_exams WHERE id=?',(self.eid,)).fetchone()
+            self.assertEqual((row['owner_id'],row['title'],row['color']), (self.user['id'],change['title'],'Verde'))
+            self.assertEqual([item['number'] for item in json.loads(row['items'])], [1,2])
+        student = Client(self.app, 'testserver')
+        student.login('estudante.teste', password)
+        for path, body in (('/api/exams',None),('/api/model-data/exam-edit-list',None),
+                           ('/api/exams/preview',upload),('/api/exams/confirm',upload),
+                           ('/api/model-data/exam-metadata-update',change)):
+            self.assertEqual(student.request(path,body)['status'], 403)
 
     def test_old_date_lookup_and_reuse(self):
         with self.app.db.connection(write=True) as c:

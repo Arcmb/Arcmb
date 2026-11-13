@@ -18,13 +18,13 @@ import exam_metadata as _exam_metadata
 
 def handle(app, c, user, path, method, data, query, start, HTTPError):
     if path == '/api/model-data/exam-edit-list':
-        _rx_role_guard(user, HTTPError)
+        if not _exam_metadata.can_edit(user):
+            raise HTTPError(403, 'O cadastro de mapas é exclusivo do Master e da coordenação.')
         if method != 'GET':
             raise HTTPError(405, 'Use GET para listar os mapas.')
         return app.reply(start, 200, {'exams': _exam_metadata.catalogue(app, c, user)})
 
     if path in ('/api/model-data/exam-date-update', '/api/model-data/exam-metadata-update'):
-        _rx_role_guard(user, HTTPError)
         if method != 'POST':
             raise HTTPError(405, 'Use POST para editar o caderno.')
         result = _exam_metadata.update(app, c, user, data, HTTPError,
@@ -154,23 +154,38 @@ def main():
     # The workbook and map modules are unpacked by earlier release steps.
     modules = {
         model: [
+            ("old and user['role'] != 'master' and old['owner_id'] != user['id']",
+             "old and not _exam_metadata.can_edit(user)"),
+            ("Um dos mapas pertence a outro responsável. A coordenação pode usá-lo, mas somente o autor ou o Master pode alterá-lo.",
+             "A edição dos mapas é exclusiva do Master e da coordenação."),
             ("'md_' + identity[:32]", "_exam_metadata.available_import_id(app, c, 'md_' + identity[:32])"),
             ("app.db.execute(c, 'SELECT id FROM hmay_exams WHERE identity_key=?', (identity,)).fetchone()",
              "_exam_metadata.find_import_map(app, c, spec['title'], spec['date'], spec['color'])"),
             ("color=spec['color'], area='', items=items", "color=spec['color'], area=old['area'] if old else '', items=items"),
         ],
         ROOT/'unified.py': [
+            ("old and user['role']!='master' and old['owner_id']!=user['id']",
+             "old and not _exam_metadata.can_edit(user)"),
+            ("Este mapa pertence a outro responsável. O coordenador pode usar o mapa existente, mas somente seu autor ou o Master pode alterá-lo.",
+             "A edição dos mapas é exclusiva do Master e da coordenação."),
             ("'wb_'+identity[:32]", "_exam_metadata.available_import_id(app, c, 'wb_' + identity[:32])"),
             ("app.db.execute(c,'SELECT id FROM hmay_exams WHERE identity_key=?',(identity,)).fetchone()",
              "_exam_metadata.find_import_map(app, c, values['title'], values['date'], values['color'])"),
         ],
-        ROOT/'exams.py': [],
+        ROOT/'exams.py': [
+            ("user['role']not in('master','coordenador')", "not _exam_metadata.can_edit(user)"),
+            ("user['role']=='master'or r['owner_id']==user['id']", "_exam_metadata.can_edit(user)"),
+            ("old and user['role']!='master' and old['owner_id']!=user['id']",
+             "old and not _exam_metadata.can_edit(user)"),
+            ("Somente o Master ou quem cadastrou este simulado pode alterar seu mapa.",
+             "A edição dos mapas é exclusiva do Master e da coordenação."),
+        ],
     }
     keys = {model:"exam['identity_key']", ROOT/'unified.py':"p['identity']", ROOT/'exams.py':"identity"}
     for module, replacements in modules.items():
         source=module.read_text(encoding='utf-8')
         for old, new in replacements:
-            if new in source:
+            if old not in source and new in source:
                 continue
             if source.count(old)!=1:
                 raise RuntimeError(f'Expected one map import expression in {module.name}: {old}')
