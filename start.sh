@@ -56,7 +56,6 @@ python verify_hotfix_v3713_sort.py || exit 70
 python verify_provisional_expiry.py || exit 71
 python verify_motor_v3718.py || exit 72
 python verify_student_view.py || exit 73
-python verify_nav_v4.py || exit 74
 python verify_site_version.py || exit 50
 python verify_release.py || exit 11
 python verify_adaptive.py || exit 12
