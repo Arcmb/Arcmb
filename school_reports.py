@@ -398,9 +398,20 @@ def by_discipline(d, tokens=None, turma=''):
                 'students': len(e['users']), 'struggling': struggling, 'related': related,
                 'priority': _priority(error, e['tot'], len(e['questions']))}
 
+    try:
+        import enem_items as ENEM
+        import disciplines_catalog as DC
+        enem = ENEM.subject_index(d.app, d.c)
+    except Exception:
+        enem, DC = {}, None
     out = []
     for D in discs.values():
-        subjects = sorted((pack(e) for e in D['subjects'].values()), key=lambda x: (_PRI_ORDER[x['priority']], -(x['error'] or 0)))
+        packed = []
+        for e in D['subjects'].values():
+            x = pack(e)
+            x['enem'] = enem.get((DC.key(D['name']), DC.key(x['label']))) if DC else None
+            packed.append(x)
+        subjects = sorted(packed, key=lambda x: (_PRI_ORDER[x['priority']], -(x['error'] or 0)))
         skills = sorted((pack(e) for e in D['skills'].values()), key=lambda x: (_PRI_ORDER[x['priority']], -(x['error'] or 0)))
         out.append({'discipline': D['name'], 'area': D['area'], 'answers': D['tot'], 'error': _err(D['ok'], D['tot']),
                     'high': sum(1 for x in subjects if x['priority'] == 'alta'), 'subjects': subjects, 'skills': skills})

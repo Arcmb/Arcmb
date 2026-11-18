@@ -51,3 +51,11 @@
 .dc-table td:nth-child(3) input{min-width:260px}
 .dc-ok{background:#e2f1e2;color:#2c5e2e}
 .dc-change{background:#fde5c4;color:#7a4a05}
+
+/* enem_items.js v3.13.0 */
+.en-bar{display:flex;height:12px;width:160px;border-radius:6px;overflow:hidden;background:#eee}
+.en-bar span{display:block;height:100%}
+.en-d0{background:#5aa36a}.en-d1{background:#e0b23a}.en-d2{background:#d9713c}.en-d3{background:#b8364a}
+.en-t0{background:#e2f1e2;color:#2c5e2e}.en-t1{background:#fbefc9;color:#6b5205}.en-t2{background:#fbdcc9;color:#7a3a10}.en-t3{background:#f8d2d7;color:#8a1f33}
+.en-file{display:flex;flex-direction:column;gap:4px}
+.en-preview{border-top:1px solid var(--line,#ecd2d7);margin-top:12px;padding-top:8px}

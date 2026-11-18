@@ -50,3 +50,9 @@ with app.db.connection(write=True) as c:
     app.db.execute(c,'INSERT INTO hmay_exams(id,identity_key,owner_id,title,applied_on,color,area,items,version,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',('ex2','k2',owner,'5º Simulado',P.today(),'AZUL','GERAL',json.dumps(items),1,P.now().isoformat()))
 
 print('seeded')
+# Planilha de itens do ENEM para o cenário 07 (gravada ao lado do banco temporário).
+import base64 as _b64, os as _os
+import enem_items as _E, templates_v23 as _T
+_rows=[[2023,'MT','Matemática','Funções','Funções',f'H{20+i%3}',2.0+0.2*i,0.8+0.25*i,0.15] for i in range(6)]+[[2022,'CN','Química','Estequiometria','Estequiometria','H24',2.8,2.2,0.12],[2022,'','Astronomia','','Estrelas','',2,1,0.2]]
+_blob,_=_T.export(_E.HEADERS,_rows,first_name='Itens ENEM')
+open(_os.path.join(_os.path.dirname(sys.argv[2]),'itens_enem.xlsx'),'wb').write(_blob)
