@@ -37,6 +37,9 @@ async function svLeave(){
 }
 
 const SV_REVIEW_VIEWS=[['review-table','Tabela de revisões'],['reviews','Programação e histórico']];
+// Abas de uso do aluno: ficam ocultas para Master e coordenação no próprio usuário (v3.11.1).
+const SV_STUDENT_ONLY=['mapping','diagnosis','routine','subjects','contents','calendar','reviews','review-table','checks'];
+function svManagerOwnView(){return !svActive()&&typeof ME!=='undefined'&&!!ME&&['master','coordenador'].includes(ME.role);}
 function svIsReviewView(){return view==='review-table'||view==='reviews';}
 
 function svSubtabs(){
@@ -59,6 +62,9 @@ const nav=document.getElementById('nav');
   nav.querySelectorAll('[data-view="reviews"]:not([data-sv-merged])').forEach(b=>b.remove());
   if(svActive())nav.querySelectorAll('[data-view="password"]').forEach(b=>b.remove());
   if(svActive()||!(typeof manages==='function'&&manages()))nav.querySelectorAll('[data-view="data"]').forEach(b=>b.remove());
+  if(svManagerOwnView()){
+   nav.querySelectorAll('button[data-view]').forEach(b=>{if(b.dataset.svMerged||SV_STUDENT_ONLY.includes(b.dataset.view))b.remove();});
+  }
   const rev=nav.querySelector('[data-sv-merged]')||nav.querySelector('[data-view="review-table"]');
   if(rev){
    rev.dataset.svMerged='1';
@@ -87,19 +93,13 @@ function svChrome(){
 
 (function svInstall(){
  if(typeof render!=='function'||typeof load!=='function'||typeof acts==='undefined')return;
- const style=document.createElement('style');
- style.textContent='#account-wrap{display:none!important}'
-  +'.sv-subtabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line,#ecd2d7);margin:0 0 16px}'
-  +'.sv-subtabs button{border:0;background:transparent;color:var(--muted,#7b5c62);padding:8px 14px;border-bottom:3px solid transparent;font:inherit;font-weight:600;cursor:pointer;border-radius:0}'
-  +'.sv-subtabs button.active{color:var(--ink,#3b2026);border-bottom-color:var(--primary,#b65362)}'
-  +'.sv-subtabs button:focus-visible{outline:3px solid var(--primary,#b65362);outline-offset:2px}';
- document.head.appendChild(style);
  if(typeof renderNav==='function'){const baseNav=renderNav;renderNav=function(){const out=baseNav.apply(this,arguments);try{svNavFix();}catch(_){}return out;};}
  const baseLoad=load;
  load=async function(){svSync();return baseLoad.apply(this,arguments);};
  const baseRender=render;
  render=function(){
   if(svActive()&&view==='password')view='home';
+  if(svManagerOwnView()&&SV_STUDENT_ONLY.includes(view))view='home';
   if(view==='data'&&(svActive()||!(typeof manages==='function'&&manages())))view='home';
   const out=baseRender.apply(this,arguments);
   try{svChrome();}catch(_){}

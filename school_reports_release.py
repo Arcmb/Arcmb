@@ -59,6 +59,10 @@ def install_css():
     if '/static/qi_extras.css' not in html:
         html = patch(html, '</head>', '<link rel="stylesheet" href="/static/qi_extras.css?v=3.11.0"></head>', 'css link')
         html_path.write_text(html, encoding='utf-8')
+    html = html_path.read_text(encoding='utf-8')
+    if 'student_view_v2.js?v=3.8.2' in html:  # v3.11.1: força o navegador a baixar a versão nova
+        html = patch(html, 'student_view_v2.js?v=3.8.2', 'student_view_v2.js?v=3.11.1', 'student view cache')
+        html_path.write_text(html, encoding='utf-8')
 
 
 
