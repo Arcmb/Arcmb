@@ -1,0 +1,1 @@
+document.getElementById('show-password').addEventListener('click',()=>{const p=document.getElementById('login-password');p.type=p.type==='password'?'text':'password';document.getElementById('show-password').textContent=p.type==='password'?'Mostrar':'Ocultar';});

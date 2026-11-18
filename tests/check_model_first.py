@@ -1,7 +1,7 @@
 """Local UI + backend integration for the model-first flow; no real user data."""
 import sys,tempfile,json,re,base64
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1])); sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'checks'))
 from webapp import App
 from test_system import Browser
 from playwright.sync_api import sync_playwright

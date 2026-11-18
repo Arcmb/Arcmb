@@ -7,8 +7,9 @@ import json
 import time
 import secrets
 import planner as P
+import motor_profiles as MOTOR  # === MOTOR PROFILES V3.9.0 ===
 
-VERSION = '2.2'
+VERSION = '2.3'
 QUESTIONS = [
  ('goal','Objetivos','Qual é sua prioridade atual?', [('exam','Preparar uma prova'),('routine','Manter uma rotina'),('recover','Retomar conteúdos'),('balance','Equilibrar estudo e outras atividades')]),
  ('stability','Objetivos','Seus horários livres se repetem entre semanas?', [('stable','Quase sempre'),('mixed','Parte se repete'),('variable','Mudam bastante')]),
@@ -31,6 +32,7 @@ QUESTIONS = [
  ('difficulty','Estudo e revisão','O que faz quando não consegue resolver?', [('retry','Retomo a explicação e tento outra questão'),('support','Procuro ajuda'),('skip','Pulo e sigo adiante'),('unsure','Não tenho uma estratégia definida')]),
  ('recording','Estudo e revisão','Quando consegue registrar o que realizou?', [('after','Ao terminar cada bloco'),('daily','Ao final do dia'),('weekly','Na revisão da semana'),('irregular','Ainda não consigo registrar regularmente')]),
 ]
+from questions_v23 import QUESTIONS, HELPS
 QUESTION_MAP = {q[0]: q for q in QUESTIONS}
 REASONS = {
  'preference':'Preferência de horário', 'availability':'Disponibilidade mudou',
@@ -39,8 +41,8 @@ REASONS = {
  'exception':'Imprevisto pontual', 'correction':'Correção de cadastro',
  'proposal':'Proposta conferida', 'not_informed':'Não informado',
 }
-SETTING_LABELS = {'preferred':'Período preferido','sessionMin':'Bloco mínimo (min)',
- 'sessionMax':'Bloco máximo (min)','reviewMin':'Revisão (min)','breakMin':'Pausa (min)',
+SETTING_LABELS = {'preferred':'Período preferido','sessionMin':'Estudo contínuo mínimo (min)',
+ 'sessionMax':'Estudo contínuo máximo (min)','reviewMin':'Revisão (min)','breakMin':'Pausa (min)',
  'reservePct':'Reserva para imprevistos (%)','sameDay':'Retomada no mesmo dia'}
 
 def dumps(x):
@@ -82,8 +84,8 @@ def suggestions(p):
         if a.get('interruptions')=='often' or a.get('environment')=='noisy':block=min(block,25)
         if a.get('delay')=='often' and a.get('recovery')=='shorter':block=min(block,25)
         put('sessionMax',block,'Duração relatada de foco, com redução quando há interrupções frequentes.')
-        put('sessionMin',min(s['sessionMin'],block),'Mantém o bloco mínimo compatível com o máximo proposto.')
-        put('reviewMin',min(s['reviewMin'],block),'Mantém a revisão dentro do bloco máximo proposto.')
+        put('sessionMin',min(s['sessionMin'],block),'Mantém o período mínimo de estudo compatível com o máximo proposto.')
+        put('reviewMin',min(s['reviewMin'],block),'Mantém a revisão dentro do período máximo de estudo proposto.')
     if 'energy' in a:put('preferred',a['energy'],'Preferência informada; não cria disponibilidade nesse período.')
     if 'break' in a:put('breakMin',int(a['break']),'Duração de pausa escolhida para testar.')
     if 'reserve' in a:
@@ -172,6 +174,213 @@ def bonuses(app,c,user,target,p):
     weights=dict(shared['bonuses']);weights.update(own['bonuses'])
     return weights,own,shared
 
+
+# === MEU CRONOGRAMA: RESULTADOS ACADÊMICOS NO MOTOR MATEMÁTICO ===
+_ACADEMIC_AREA_LABELS = {
+    'LC': 'Linguagens', 'CH': 'Humanas',
+    'CN': 'Natureza', 'MT': 'Matemática',
+}
+_ACADEMIC_ALIASES = {
+    'lingua portuguesa': 'portugues', 'portugues': 'portugues',
+    'lingua inglesa': 'ingles', 'ingles': 'ingles',
+    'lingua espanhola': 'espanhol', 'espanhol': 'espanhol',
+    'lingua estrangeira': 'lingua estrangeira',
+    'matematica': 'matematica',
+    'ciencias humanas': 'humanas', 'humanas': 'humanas',
+    'ciencias da natureza': 'natureza', 'natureza': 'natureza',
+    'linguagens codigos e suas tecnologias': 'linguagens', 'linguagens': 'linguagens',
+    'tecnologias da informacao e comunicacao': 'tics', 'tic': 'tics', 'tics': 'tics',
+    'educacao fisica': 'educacao fisica', 'linguagem corporal': 'linguagem corporal',
+}
+
+
+def _academic_norm(value):
+    import re as _re
+    import unicodedata as _unicodedata
+    text = _unicodedata.normalize('NFKD', str(value or ''))
+    text = ''.join(ch for ch in text if not _unicodedata.combining(ch)).casefold()
+    text = ' '.join(_re.findall(r'[a-z0-9]+', text))
+    return _ACADEMIC_ALIASES.get(text, text)
+
+
+def _academic_json(value):
+    try:
+        parsed = json.loads(value or '{}')
+    except (TypeError, ValueError):
+        return {}
+    return parsed
+
+
+def _academic_language(metadata):
+    if not isinstance(metadata, dict):
+        return ''
+    accepted = {'l e', 'lingua estrangeira', 'l estrangeira selecionada'}
+    for key, value in metadata.items():
+        if _academic_norm(key) in accepted:
+            return _academic_norm(value)
+    return ''
+
+
+def _academic_subject_match(item, subjects):
+    discipline = _academic_norm(item.get('discipline'))
+    area = _academic_norm(_ACADEMIC_AREA_LABELS.get(str(item.get('area') or '').upper(), item.get('area')))
+    exact = {}
+    for subject in subjects:
+        exact.setdefault(_academic_norm(subject.get('name')), []).append(subject)
+    for key in (discipline, area):
+        matches = exact.get(key, [])
+        if len(matches) == 1:
+            return matches[0]
+    if discipline in ('ingles', 'espanhol'):
+        matches = exact.get('lingua estrangeira', [])
+        if len(matches) == 1:
+            return matches[0]
+    for key in (discipline, area):
+        if len(key) < 5:
+            continue
+        candidates = []
+        for subject in subjects:
+            subject_key = _academic_norm(subject.get('name'))
+            if len(subject_key) >= 5 and (key in subject_key or subject_key in key):
+                candidates.append(subject)
+        unique = {subject['id']: subject for subject in candidates}
+        if len(unique) == 1:
+            return next(iter(unique.values()))
+    return None
+
+
+def academic_priority(app, c, target, profile):
+    info = {
+        'enabled': True, 'used': False, 'bonuses': {}, 'subjects': [],
+        'unmatched': [],
+        'notice': 'Nenhum resultado acadêmico recente pôde ser associado às disciplinas ativas.',
+    }
+    subjects = [
+        subject for subject in profile.get('subjects', [])
+        if subject.get('active') and subject.get('kind') == 'study'
+    ]
+    if not subjects:
+        info['notice'] = 'Cadastre disciplinas de estudo para que os resultados possam orientar a distribuição da semana.'
+        return info
+    try:
+        rows = app.db.execute(
+            c,
+            'SELECT id,activity_key,activity,applied_on,metrics,metadata '
+            'FROM hmay_performance WHERE user_id=? ORDER BY applied_on DESC,updated_at DESC LIMIT 24',
+            (target,),
+        ).fetchall()
+    except Exception:
+        info['notice'] = 'A base de resultados acadêmicos ainda não está disponível para esta conta.'
+        return info
+    if not rows:
+        info['notice'] = 'Ainda não há simulados importados para esta conta.'
+        return info
+
+    today = P.date(P.today())
+    cutoff = P.date(P.add(P.today(), -365))
+    _qi_year = _qi_active_year(app, c, target)
+    exam_cache = {}
+    grouped = {}
+    unmatched = set()
+    for source in rows:
+        row = dict(source)
+        try:
+            applied = P.date(row.get('applied_on'))
+        except Exception:
+            continue
+        if applied < cutoff or (_qi_year and applied.year != _qi_year):
+            continue
+        metadata = _academic_json(row.get('metadata'))
+        metrics = _academic_json(row.get('metrics'))
+        exam_id = metadata.get('_exam_id')
+        if not exam_id:
+            continue
+        if exam_id not in exam_cache:
+            exam_row = app.db.execute(c, 'SELECT items FROM hmay_exams WHERE id=?', (exam_id,)).fetchone()
+            parsed_items = _academic_json(exam_row['items']) if exam_row else []
+            exam_cache[exam_id] = parsed_items if isinstance(parsed_items, list) else []
+        language = _academic_language(metadata)
+        age = max(0, (today - applied).days)
+        recency = max(.35, 1 - min(age, 365) * .65 / 365)
+        simulation_key = str(row.get('id') or row.get('activity_key') or '')
+        for item in exam_cache[exam_id]:
+            if not isinstance(item, dict):
+                continue
+            item_language = _academic_norm(item.get('language'))
+            if item_language and item_language != language:
+                continue
+            answer = str(item.get('answer') or '').strip().upper()
+            if not answer or answer == 'ANULADA':
+                continue
+            try:
+                number = int(item.get('number') or 0)
+            except (TypeError, ValueError):
+                continue
+            metric = metrics.get(f'questao:{number:03d}')
+            result = metric.get('correct') if isinstance(metric, dict) else None
+            if result not in (0, 1):
+                continue
+            subject = _academic_subject_match(item, subjects)
+            if not subject:
+                label = str(item.get('discipline') or _ACADEMIC_AREA_LABELS.get(str(item.get('area') or '').upper(), '') or 'Não informada').strip()
+                if label:
+                    unmatched.add(label)
+                continue
+            bucket = grouped.setdefault(subject['id'], {
+                'subjectId': subject['id'], 'subject': subject['name'],
+                'questions': 0, 'correct': 0, 'weightedTotal': 0.0,
+                'weightedCorrect': 0.0, 'simulations': set(),
+                'disciplines': set(), 'latest': '',
+            })
+            bucket['questions'] += 1
+            bucket['correct'] += int(result)
+            bucket['weightedTotal'] += recency
+            bucket['weightedCorrect'] += recency * int(result)
+            bucket['simulations'].add(simulation_key)
+            discipline = str(item.get('discipline') or '').strip()
+            if discipline:
+                bucket['disciplines'].add(discipline)
+            if row.get('applied_on', '') > bucket['latest']:
+                bucket['latest'] = row.get('applied_on', '')
+
+    for subject in subjects:
+        bucket = grouped.get(subject['id'])
+        if not bucket:
+            continue
+        questions = bucket['questions']
+        simulations = len(bucket['simulations'])
+        raw_accuracy = bucket['correct'] / questions if questions else 0
+        posterior = (bucket['weightedCorrect'] + 2) / (bucket['weightedTotal'] + 4)
+        confidence = min(1.0, questions / 20) * min(1.0, .6 + .2 * max(0, simulations - 1))
+        need = max(0.0, .70 - posterior) / .70
+        multiplier = min(1.25, 1 + .25 * need * confidence) if questions >= 5 else 1.0
+        multiplier = round(multiplier, 4)
+        used = multiplier > 1.001
+        if used:
+            info['bonuses'][subject['id']] = multiplier
+        info['subjects'].append({
+            'subjectId': subject['id'], 'subject': subject['name'],
+            'disciplines': sorted(bucket['disciplines']),
+            'questions': questions, 'correct': bucket['correct'],
+            'simulations': simulations, 'accuracy': round(raw_accuracy, 4),
+            'smoothedAccuracy': round(posterior, 4),
+            'confidence': round(confidence, 4), 'multiplier': multiplier,
+            'boostPct': round((multiplier - 1) * 100, 1),
+            'used': used, 'latest': bucket['latest'],
+            'reason': 'Amostra mínima de 5 questões.' if questions < 5 else ('Prioridade aumentada por desempenho recente abaixo de 70%.' if used else 'Resultado suficiente, sem necessidade de aumento de prioridade.'),
+        })
+    info['subjects'].sort(key=lambda item: (-item['boostPct'], item['subject'].casefold()))
+    info['unmatched'] = sorted(unmatched)[:30]
+    info['used'] = bool(info['bonuses'])
+    if info['used']:
+        info['notice'] = 'Resultados dos últimos 365 dias aumentam, de forma limitada, o peso das disciplinas com maior necessidade. O aumento máximo é 25% e só vale na nova prévia.'
+    elif info['subjects']:
+        info['notice'] = 'Os resultados foram analisados, mas não produziram aumento de prioridade: desempenho igual ou superior ao limiar, ou amostra insuficiente.'
+    elif unmatched:
+        info['notice'] = 'Há resultados importados, mas nenhuma disciplina do mapa corresponde às disciplinas ativas do cronograma.'
+    return info
+
+
 def delta(before,after):
     b={s['id']:s for s in before['sessions']};a={s['id']:s for s in after['sessions']}
     added=[a[i] for i in a.keys()-b.keys()];removed=[b[i] for i in b.keys()-a.keys()]
@@ -231,7 +440,8 @@ def handle(app,c,user,path,method,data,query,start,HTTPError):
     p=json.loads(row['profile'])
     if path=='/api/adaptive' and method=='GET':
         weights,own,shared=bonuses(app,c,user,target,p)
-        return app.reply(start,200,dict(version=VERSION,questions=[dict(key=k,group=g,label=l,options=o) for k,g,l,o in QUESTIONS],answers=answers(p),suggestions=suggestions(p),personal=own,collective=shared,history=history(app,c,target),canConsent=target==user['id'] and user['role'] in ('aluno','user'),profileVersion=row['version']))
+        academic=academic_priority(app,c,target,p)
+        return app.reply(start,200,dict(version=VERSION,questions=[dict(key=k,group=g,label=l,options=o,help=HELPS.get(k,"")) for k,g,l,o in QUESTIONS],answers=answers(p),suggestions=suggestions(p),personal=own,collective=shared,academic=academic,history=history(app,c,target),canConsent=target==user['id'] and user['role'] in ('aluno','user'),profileVersion=row['version']))
     if method!='POST':raise HTTPError(404,'Ação não encontrada.')
     if type(data.get('version'))is not int or data['version']!=row['version']:raise HTTPError(409,'O planejamento mudou. Atualize a página e confira novamente.')
     if path=='/api/adaptive/consent':
@@ -247,15 +457,22 @@ def handle(app,c,user,path,method,data,query,start,HTTPError):
         mode=data.get('mode','fill')
         if mode not in ('fill','reorganize'):raise ValueError('Modo de organização inválido.')
         w=P.week(data.get('week') or P.today())
-        if w<P.week(P.today()) or w>P.add(P.week(P.today()),364):raise ValueError('Escolha uma semana atual ou nos próximos 12 meses.')
+        try:weeks=max(1,min(4,int(data.get('weeks',1))))
+        except (TypeError,ValueError):raise ValueError('Quantidade de semanas inválida.')
+        last_week=P.add(w,7*(weeks-1))
+        if w<P.week(P.today()) or last_week>P.add(P.week(P.today()),364):raise ValueError('Escolha uma semana atual ou nos próximos 12 meses.')
         weights,own,shared=bonuses(app,c,user,target,p)
-        new=P.generate(copy.deepcopy(p),w,mode=mode,bonuses=weights);P.validate(new)
+        academic=academic_priority(app,c,target,p)
+        new=copy.deepcopy(p)
+        motor_profile=MOTOR.apply_to_plan(app,c,target,new)
+        for index in range(weeks):new=P.generate(new,P.add(w,7*index),mode=mode,bonuses=weights,subject_bonuses=academic.get('bonuses',{}))
+        P.validate(new)
         if len(dumps(new).encode())>5_000_000:raise ValueError('Planejamento excede o limite de dados.')
-        report=delta(p,new);report.update(mode=mode,week=w,own=own,collective=shared)
+        report=delta(p,new);report.update(mode=mode,week=w,endWeek=last_week,weeks=weeks,own=own,collective=shared,academic=academic)
         token=secrets.token_urlsafe(32)
         app.db.execute(c,'DELETE FROM hmay_proposals WHERE expires<? OR (actor_id=? AND target_id=?)',(int(time.time()),user['id'],target))
         app.db.execute(c,'INSERT INTO hmay_proposals(id,actor_id,target_id,base_version,profile,summary,expires) VALUES (?,?,?,?,?,?,?)',(token,user['id'],target,row['version'],dumps(new),dumps(report),int(time.time())+1800))
-        return app.reply(start,200,dict(token=token,summary=report,sessions=[s for s in new['sessions'] if w<=s['date']<=P.add(w,6)],pending=new['pending'],notice='Prévia: nenhum horário foi substituído. Confirme para salvar. Blocos fixados e registros de execução são preservados.'))
+        return app.reply(start,200,dict(token=token,summary=report,sessions=[s for s in new['sessions'] if w<=s['date']<=P.add(last_week,6)],pending=new['pending'],notice=('Prévia de '+str(weeks)+' semana(s): nenhum horário foi substituído. Confirme para salvar. Blocos fixados e registros de execução são preservados.')))
     if path=='/api/adaptive/confirm':
         proposal=app.db.execute(c,'SELECT * FROM hmay_proposals WHERE id=? AND actor_id=? AND target_id=?'+(' FOR UPDATE' if not app.db.local_path else ''),(str(data.get('token','')),user['id'],target)).fetchone()
         if not proposal or proposal['expires']<int(time.time()):raise HTTPError(409,'Prévia expirada ou indisponível. Gere outra.')
@@ -270,3 +487,168 @@ def handle(app,c,user,path,method,data,query,start,HTTPError):
         app.db.execute(c,'DELETE FROM hmay_proposals WHERE id=?',(proposal['id'],));app.event(c,user,target,'schedule_proposal:'+report['mode'])
         return app.reply(start,200,app.state(c,user,target))
     raise HTTPError(404,'Ação não encontrada.')
+
+
+# === MEU CRONOGRAMA: PERFIS OPERACIONAIS DE ESTUDO V1 ===
+_STUDY_BUILTIN_PRESETS = [
+    dict(id='builtin:guided',name='Estrutura guiada',description='Para quem precisa de uma rotina previsível, blocos curtos e revisões frequentes.',config=dict(sessionMin=20,sessionMax=30,breakMin=10,dailyMax=90,weeklyGoal=360,reservePct=30,intervals=[1,3,7,14,30],reviewMin=25,defaultReviewPlan='both',defaultTheoryMin=12,defaultExerciseMin=18)),
+    dict(id='builtin:restart',name='Retomada gradual',description='Carga inicial reduzida, mais reserva para imprevistos e progressão conservadora.',config=dict(sessionMin=20,sessionMax=25,breakMin=10,dailyMax=75,weeklyGoal=300,reservePct=35,intervals=[1,3,7,14],reviewMin=25,defaultReviewPlan='both',defaultTheoryMin=10,defaultExerciseMin=15)),
+    dict(id='builtin:strategy',name='Estratégia em desenvolvimento',description='Equilibra compreensão, prática e acompanhamento da execução semanal.',config=dict(sessionMin=25,sessionMax=40,breakMin=10,dailyMax=120,weeklyGoal=480,reservePct=25,intervals=[1,4,10,21,45],reviewMin=35,defaultReviewPlan='both',defaultTheoryMin=15,defaultExerciseMin=20)),
+    dict(id='builtin:autonomous',name='Autonomia consolidada',description='Blocos mais longos, maior prática independente e pausas ajustáveis pelo aluno.',config=dict(sessionMin=30,sessionMax=60,breakMin=10,dailyMax=180,weeklyGoal=720,reservePct=20,intervals=[1,7,21,45,90],reviewMin=40,defaultReviewPlan='both',defaultTheoryMin=10,defaultExerciseMin=30)),
+    dict(id='builtin:exam',name='Pré-prova intensiva',description='Janela temporária com maior frequência de recuperação e predominância de exercícios.',config=dict(sessionMin=25,sessionMax=50,breakMin=10,dailyMax=240,weeklyGoal=900,reservePct=15,intervals=[1,3,7,14],reviewMin=40,defaultReviewPlan='exercise_only',defaultTheoryMin=10,defaultExerciseMin=30)),
+    dict(id='builtin:short',name='Rotina curta',description='Para estudantes com pouco tempo disponível, priorizando sessões objetivas e exercícios.',config=dict(sessionMin=20,sessionMax=35,breakMin=8,dailyMax=60,weeklyGoal=240,reservePct=30,intervals=[1,3,7,21],reviewMin=30,defaultReviewPlan='exercise_only',defaultTheoryMin=10,defaultExerciseMin=20)),
+]
+
+
+def _study_schema(app,c):
+    app.db.execute(c,'CREATE TABLE IF NOT EXISTS hmay_study_presets (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, config TEXT NOT NULL, created_by TEXT NOT NULL, active INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)')
+
+
+def _study_manager(user):
+    return str(user.get('role') or '') in ('master','coordenador')
+
+
+def _study_clean_config(raw):
+    if not isinstance(raw,dict):raise ValueError('Configuração do perfil-base inválida.')
+    def number(key,default,lo,hi):
+        try:value=int(raw.get(key,default))
+        except (TypeError,ValueError):raise ValueError('Valor inválido: '+key)
+        if not lo<=value<=hi:raise ValueError('Valor fora do limite: '+key)
+        return value
+    intervals=raw.get('intervals',[1,3,7,14,30])
+    if isinstance(intervals,str):
+        try:intervals=[int(x.strip()) for x in intervals.split(',') if x.strip()]
+        except ValueError:raise ValueError('Intervalos de revisão inválidos.')
+    if not isinstance(intervals,list) or not 1<=len(intervals)<=10 or any(type(x)is not int or not 1<=x<=365 for x in intervals):raise ValueError('Intervalos de revisão inválidos.')
+    intervals=sorted(set(intervals))
+    plan=str(raw.get('defaultReviewPlan','both'))
+    if plan not in ('both','exercise_only','theory_only'):raise ValueError('Plano de revisão inválido.')
+    session_min=number('sessionMin',20,10,120);session_max=number('sessionMax',40,session_min,180)
+    return dict(sessionMin=session_min,sessionMax=session_max,breakMin=number('breakMin',10,0,60),dailyMax=number('dailyMax',120,10,720),weeklyGoal=number('weeklyGoal',480,10,5040),reservePct=number('reservePct',25,0,80),intervals=intervals,reviewMin=number('reviewMin',30,10,180),defaultReviewPlan=plan,defaultTheoryMin=number('defaultTheoryMin',10,5,180),defaultExerciseMin=number('defaultExerciseMin',20,5,240))
+
+
+def _study_presets(app,c):
+    _study_schema(app,c)
+    custom=[]
+    for row in app.db.execute(c,'SELECT id,name,description,config,created_by,active,created_at,updated_at FROM hmay_study_presets WHERE active=1 ORDER BY name').fetchall():
+        item=dict(row)
+        try:item['config']=json.loads(item.get('config') or '{}')
+        except Exception:item['config']={}
+        item['custom']=True;custom.append(item)
+    return [dict(x,custom=False) for x in _STUDY_BUILTIN_PRESETS]+custom
+
+
+def _study_find_preset(app,c,preset_id):
+    for item in _study_presets(app,c):
+        if item['id']==preset_id:return item
+    return None
+
+
+_study_original_handle=handle
+
+def handle(app,c,user,path,method,data,query,start,HTTPError):
+    if path in ('/api/adaptive/presets','/api/adaptive/preset-save','/api/adaptive/preset-apply'):
+        target=str(data.get('user') or query.get('user',[user['id']])[0]);app.require_target(user,target,c);_study_schema(app,c)
+        if path=='/api/adaptive/presets' and method=='GET':
+            state=app.db.execute(c,'SELECT profile FROM hmay_state WHERE user_id=?',(target,)).fetchone();profile=json.loads(state['profile']) if state else {}
+            settings=profile.get('settings',{}) if isinstance(profile,dict) else {}
+            return app.reply(start,200,dict(presets=_study_presets(app,c),current=dict(id=settings.get('studyPresetId',''),name=settings.get('studyPresetName','')),canManage=_study_manager(user)))
+        if not _study_manager(user):raise HTTPError(403,'Perfis-base podem ser administrados somente pelo Master e pela coordenação.')
+        if path=='/api/adaptive/preset-save' and method=='POST':
+            name=str(data.get('name') or '').strip();description=str(data.get('description') or '').strip()
+            if not 2<=len(name)<=100 or len(description)>500:raise ValueError('Informe um nome e uma descrição válidos.')
+            config=_study_clean_config(data.get('config',{}));preset_id=str(data.get('id') or '')
+            if preset_id.startswith('builtin:'):raise ValueError('Perfis internos não podem ser substituídos; crie uma cópia personalizada.')
+            now=P.now().isoformat()
+            if preset_id:
+                row=app.db.execute(c,'SELECT id FROM hmay_study_presets WHERE id=?',(preset_id,)).fetchone()
+                if not row:raise ValueError('Perfil-base não encontrado.')
+                app.db.execute(c,'UPDATE hmay_study_presets SET name=?,description=?,config=?,active=1,updated_at=? WHERE id=?',(name,description,json.dumps(config,ensure_ascii=False,separators=(',',':')),now,preset_id))
+            else:
+                preset_id='preset:'+P.uid()
+                app.db.execute(c,'INSERT INTO hmay_study_presets(id,name,description,config,created_by,active,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',(preset_id,name,description,json.dumps(config,ensure_ascii=False,separators=(',',':')),user['id'],1,now,now))
+            app.event(c,user,target,'study_preset_save')
+            return app.reply(start,200,dict(ok=True,id=preset_id,presets=_study_presets(app,c)))
+        if path=='/api/adaptive/preset-apply' and method=='POST':
+            row=app.db.execute(c,'SELECT * FROM hmay_state WHERE user_id=?'+(' FOR UPDATE' if not app.db.local_path else ''),(target,)).fetchone()
+            if not row:raise HTTPError(404,'Conta não encontrada.')
+            if type(data.get('version'))is not int or data['version']!=row['version']:raise HTTPError(409,'O planejamento mudou. Atualize a página antes de aplicar o perfil-base.')
+            preset=_study_find_preset(app,c,str(data.get('presetId') or ''))
+            if not preset:raise ValueError('Perfil-base não encontrado.')
+            config=_study_clean_config(preset['config']);profile=json.loads(row['profile']);settings=profile.setdefault('settings',{})
+            settings.update(config);settings['studyPresetId']=preset['id'];settings['studyPresetName']=preset['name']
+            if bool(data.get('applyExisting',True)):
+                for subject in profile.get('subjects',[]):
+                    subject['reviewPlan']=config['defaultReviewPlan'];subject['theoryReviewMin']=config['defaultTheoryMin'];subject['exerciseReviewMin']=config['defaultExerciseMin'];subject.setdefault('priority',3);subject.setdefault('preferredReviewDay',-1)
+                for content in profile.get('contents',[]):
+                    content['reviewPlan']=config['defaultReviewPlan'];content['theoryReviewMin']=config['defaultTheoryMin'];content['exerciseReviewMin']=config['defaultExerciseMin'];content['reviewMinutes']=config['defaultTheoryMin']+config['defaultExerciseMin'];content.setdefault('preferredReviewDay',-1)
+                if preset['id']=='builtin:math':_study_apply_math_focus(profile)
+            if profile.get('planMeta'):profile['planMeta']['dirty']=True
+            P.audit(profile,'perfil-base','Perfil-base aplicado: '+preset['name']+'. Horários existentes foram preservados até nova prévia.')
+            P.validate(profile)
+            app.db.execute(c,'UPDATE hmay_state SET profile=?,version=version+1,updated_at=? WHERE user_id=?',(json.dumps(profile,ensure_ascii=False,separators=(',',':')),P.now().isoformat(),target));app.event(c,user,target,'study_preset_apply')
+            return app.reply(start,200,app.state(c,user,target))
+        raise HTTPError(405,'Ação não permitida.')
+    return _study_original_handle(app,c,user,path,method,data,query,start,HTTPError)
+
+# === MATHEMATICS STUDY PRESET V1 ===
+import unicodedata as _math_ud
+
+
+def _math_norm(value):
+    raw=str(value or '').strip().lower()
+    return ''.join(ch for ch in _math_ud.normalize('NFD',raw) if _math_ud.category(ch)!='Mn')
+
+
+def _study_apply_math_focus(profile):
+    subjects=profile.get('subjects',[]) if isinstance(profile,dict) else []
+    subject_kind={}
+    for subject in subjects:
+        if not isinstance(subject,dict):continue
+        name=_math_norm(subject.get('name'))
+        kind=''
+        if 'matematica' in name:
+            kind='math'
+            subject['priority']=1
+            subject['weeklyMin']=max(180,int(subject.get('weeklyMin') or 0))
+            subject['reviewPlan']='both'
+            subject['theoryReviewMin']=15
+            subject['exerciseReviewMin']=35
+            subject['importance']=max(4,int(subject.get('importance') or 3))
+        elif 'fisica' in name or 'quimica' in name:
+            kind='exact'
+            subject['priority']=min(2,int(subject.get('priority') or 3))
+            subject['weeklyMin']=max(120,int(subject.get('weeklyMin') or 0))
+            subject['reviewPlan']='both'
+            subject['theoryReviewMin']=15
+            subject['exerciseReviewMin']=30
+        if kind and subject.get('id'):subject_kind[subject['id']]=kind
+    for content in profile.get('contents',[]):
+        if not isinstance(content,dict):continue
+        kind=subject_kind.get(content.get('subjectId'))
+        if not kind:continue
+        content['reviewPlan']='both'
+        content['theoryReviewMin']=15
+        content['exerciseReviewMin']=35 if kind=='math' else 30
+        content['reviewMinutes']=content['theoryReviewMin']+content['exerciseReviewMin']
+    return profile
+
+if not any(x.get('id')=='builtin:math' for x in _STUDY_BUILTIN_PRESETS):
+    _STUDY_BUILTIN_PRESETS.append(dict(
+        id='builtin:math',
+        name='Matemática e Exatas',
+        description='Prioriza Matemática, resolução progressiva de problemas, correção de erros e prática frequente. Física e Química recebem prioridade alta quando cadastradas.',
+        config=dict(sessionMin=25,sessionMax=50,breakMin=10,dailyMax=180,weeklyGoal=660,reservePct=20,intervals=[1,3,7,14,30,60],reviewMin=50,defaultReviewPlan='both',defaultTheoryMin=15,defaultExerciseMin=35)
+    ))
+
+# === MOTOR V3.7.18 ===
+def _qi_active_year(app, c, target):
+    """Ano letivo ativo do aluno; None quando nunca foi definido."""
+    try:
+        row = app.db.execute(c, 'SELECT active_year FROM hmay_academic_year WHERE user_id=?', (target,)).fetchone()
+    except Exception:
+        return None
+    try:
+        return int(row['active_year']) if row else None
+    except (KeyError, TypeError, ValueError):
+        return None

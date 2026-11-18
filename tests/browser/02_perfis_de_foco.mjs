@@ -1,0 +1,40 @@
+const list=await (await fetch('http://127.0.0.1:9222/json/list')).json();const page=list.find(x=>x.type==='page');
+const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let id=0;const pend={};const errors=[];
+ws.onmessage=m=>{const d=JSON.parse(m.data);if(d.id&&pend[d.id]){pend[d.id](d);delete pend[d.id];}if(d.method==='Runtime.exceptionThrown')errors.push((d.params.exceptionDetails.exception?.description||'').split('\n')[0]);};
+const send=(method,params={})=>new Promise(r=>{const i=++id;pend[i]=r;ws.send(JSON.stringify({id:i,method,params}));});const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const ev=async e=>{const r=await send('Runtime.evaluate',{expression:e,awaitPromise:true,returnByValue:true});return r.result.exceptionDetails?'ERR '+(r.result.exceptionDetails.exception?.description||'').split('\n')[0]:r.result.result.value;};
+const shot=async n=>{const r=await send('Page.captureScreenshot',{format:'png'});(await import('fs')).writeFileSync('/tmp/qi-browser-'+n+'.png',Buffer.from(r.result.data,'base64'));};
+await send('Runtime.enable');await send('Network.enable');let fails=0;const check=(l,c,x='')=>{console.log((c?'OK  ':'FALHA ')+l+(x?' → '+x:''));if(!c)fails++;};
+async function login(u,p){await send('Network.clearBrowserCookies');await send('Page.navigate',{url:'http://127.0.0.1:8765/login'});await sleep(1500);await ev(`document.querySelector('[name=username]').value='${u}';document.querySelector('[name=password]').value='${p}';document.querySelector('form').submit()`);await sleep(4000);await ev(`document.querySelectorAll('dialog').forEach(d=>d.open&&d.close());document.querySelectorAll('[class*=guide]').forEach(x=>{if(getComputedStyle(x).position==='fixed')x.remove()});1`);}
+const nav=()=>ev(`[...document.querySelectorAll('#nav button')].map(b=>b.textContent.replace(/^\\d+/,'').trim()).join(' | ')`);
+// ALUNO
+await login('ana.souza','TEST_aluno_1234');await sleep(1500);
+check('Aluno vê card Meu foco',await ev(`!!document.querySelector('.mp-card')`));
+check('Foco = Precisão',await ev(`/Precisão/.test(document.querySelector('.mp-card')?.innerText||'')`),await ev(`(document.querySelector('.mp-card')?.innerText||'').slice(0,140)`));
+check('Aluno não vê nota/faixa',await ev(`!/760|média|TRI/i.test(document.querySelector('.mp-card').innerText)`));
+check('Aluno não tem aba Motor',!(await nav()).includes('Motor de estudos'));
+await shot('mp-aluno');
+await ev(`document.getElementById('mp-choice').value='intensiva';document.querySelector('[data-act="mp-save"]').click();1`);await sleep(1500);
+check('Troca manual salva',await ev(`/Revisão Intensiva/.test(document.querySelector('.mp-card').innerText)&&/escolhido por você/.test(document.querySelector('.mp-card').innerText)`));
+check('Mostra sugestão do motor',await ev(`!!document.querySelector('[data-act="mp-use-suggestion"]')`));
+await ev(`document.querySelector('[data-act="mp-use-suggestion"]').click();1`);await sleep(1500);
+check('Volta ao automático',await ev(`/escolhido pelo motor/.test(document.querySelector('.mp-card').innerText)`));
+// MASTER
+await login('arcmb','TEST_master_13579');
+let n=await nav();check('Master tem aba Motor de estudos',n.includes('Motor de estudos'),n);
+check('Master sem card de foco na Visão geral',await ev(`!document.querySelector('.mp-card')`));
+await ev(`[...document.querySelectorAll('#nav button')].find(b=>b.textContent.includes('Motor de estudos')).click();1`);await sleep(2000);
+check('Aba mostra configuração',await ev(`!!document.getElementById('mp-t-high') && document.getElementById('mp-t-high').value==='760'`));
+await ev(`document.getElementById('mp-t-rec').value='30';document.querySelector('[data-act="mp-config-save"]').click();1`);await sleep(1500);
+check('Salvar configuração',await ev(`document.getElementById('mp-t-rec').value==='30'`));
+await ev(`document.querySelector('[data-act="mp-overview"]').click();1`);await sleep(2500);
+check('Distribuição calculada',await ev(`/Precisão/.test(document.querySelector('#main').innerText) && document.querySelectorAll('#main table')[1]?.rows.length===5`));
+await shot('mp-master');
+await ev(`{const i=document.querySelector('#account-search');i.focus();i.value='Bruno';i.dispatchEvent(new Event('input',{bubbles:true}));}`);await sleep(300);
+await ev(`document.querySelector('.account-search-result').dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));1`);await sleep(3000);
+check('Visão do aluno: card com foco Base Sólida',await ev(`/Base Sólida/.test(document.querySelector('.mp-card')?.innerText||'')`));
+check('Visão do aluno: gestão vê sinais',await ev(`/Para a gestão/.test(document.querySelector('.mp-card')?.innerText||'')`));
+check('Visão do aluno: sem aba Motor',!(await nav()).includes('Motor de estudos'));
+await ev(`document.querySelector('[data-act="student-view-return"]').click();1`);await sleep(3000);
+check('Volta e aba Motor reaparece',(await nav()).includes('Motor de estudos'));
+const jsErrors=[...new Set(errors)];console.log('Falhas:',fails,'Erros JS:',jsErrors);process.exit(fails||jsErrors.length?1:0);

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1])); sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'checks'))
 from webapp import App, bulk_create_student_accounts  # noqa: E402
 from verify_release import Client  # noqa: E402
 import provisional_access as PA  # noqa: E402

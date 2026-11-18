@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">Qi Vestibulares</title>
+<desc id="desc">Logomarca Qi: círculo vermelho com símbolo Qi branco</desc>
+<circle cx="256" cy="256" r="246" fill="#e00613"/>
+<path d="M205 352C132 352 77 298 77 226S132 99 205 99s128 54 128 127c0 15-2 30-7 44" fill="none" stroke="#fff" stroke-width="52" stroke-linecap="round"/>
+<path d="M220 270l111 111" fill="none" stroke="#fff" stroke-width="52" stroke-linecap="round"/>
+<circle cx="388" cy="171" r="29" fill="#fff"/>
+<rect x="359" y="217" width="58" height="157" rx="29" fill="#fff"/>
+</svg>

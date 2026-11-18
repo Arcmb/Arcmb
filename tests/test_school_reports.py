@@ -1,7 +1,7 @@
 """v3.10.0 — Relatórios da escola. Dados sintéticos com resultado conhecido; SQLite temporário."""
 import json, sys, tempfile, unittest
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1])); sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'checks'))
 from webapp import App, encode  # noqa: E402
 from verify_release import Client  # noqa: E402
 import planner as P  # noqa: E402

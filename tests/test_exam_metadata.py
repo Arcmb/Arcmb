@@ -3,7 +3,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import base64
 import json
+import sys
 import unittest
+sys.path.insert(0, str(Path(__file__).resolve().parents[1])); sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'checks'))
 
 import exam_metadata as maps
 import model_data

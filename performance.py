@@ -118,6 +118,9 @@ def count_value(v,label):
     return n
 
 def parse_file(data):
+    return SELECT.parse(data)
+
+def _legacy_parse_file(data):
     try:blob=base64.b64decode(data.get('file',''),validate=True)
     except Exception:raise ValueError('Arquivo codificado inválido.')
     filename=text(data.get('filename',''),200)
@@ -239,6 +242,7 @@ def prepare_import(app,c,user,data):
         old=json.loads(row['metrics'])if row else{}
         metrics,n=merged_metrics(old,r['metrics'],replace);conflicts+=n
         metadata=json.loads(row['metadata'])if row else{}
+        SELECT.guard_merge(metadata,r['metadata'])
         for k,v in r['metadata'].items():
             if v in(None,''):continue
             if k in metadata and metadata[k]!=v:
@@ -248,18 +252,20 @@ def prepare_import(app,c,user,data):
         changed=not row or metrics!=old or metadata!=json.loads(row['metadata'])
         prepared.append(dict(target=target,record=r,metrics=metrics,metadata=metadata,existing=dict(row)if row else None,changed=changed))
         snapshots.append((key,row['version']if row else 0))
-    payload=json.dumps([user['id'],parsed['hash'],parsed['sheet'],resolved,replace,snapshots],ensure_ascii=False,sort_keys=True,separators=(',',':'))
+    payload=json.dumps([user['id'],parsed['hash'],parsed['sheet'],resolved,replace,snapshots,SELECT.signature(data)],ensure_ascii=False,sort_keys=True,separators=(',',':'))
     return parsed,accounts,resolved,prepared,conflicts,unresolved,payload
 
 def sign(app,payload,stamp):return hmac.new(app.secret.encode(),(str(stamp)+'\n'+payload).encode(),'sha256').hexdigest()
 
 def handle(app,c,user,path,method,data,query,start,HTTPError):
     db=app.db
+    response=SELECT.route(app,c,user,path,method,data,query,start,HTTPError)
+    if response is not None:return response
     if path=='/api/performance'and method=='GET':
         target=query.get('user',[user['id']])[0];app.require_target(user,target,c)
         rows=db.execute(c,'SELECT id,activity,applied_on,metrics,metadata,version,updated_at FROM hmay_performance WHERE user_id=? ORDER BY applied_on DESC,activity LIMIT 500',(target,)).fetchall()
         total=db.execute(c,'SELECT COUNT(*) AS n FROM hmay_performance WHERE user_id=?',(target,)).fetchone()['n']
-        return app.reply(start,200,dict(records=[{**dict(r),'metrics':json.loads(r['metrics']),'metadata':json.loads(r['metadata'])}for r in rows],total=total))
+        return app.reply(start,200,dict(records=SELECT.decorate(app,c,user,[{**dict(r),'metrics':json.loads(r['metrics']),'metadata':json.loads(r['metadata'])}for r in rows]),total=total))
     if user['role']not in('master','coordenador'):raise HTTPError(403,'A importação em lote é exclusiva do Master e da coordenação.')
     if path=='/api/performance/template'and method=='GET':
         names=dict((norm(n),n)for n in BASE_SUBJECTS)
@@ -295,3 +301,5 @@ def handle(app,c,user,path,method,data,query,start,HTTPError):
         if cursor.rowcount!=1:raise HTTPError(409,'Outra importação alterou os resultados. Nenhum dado deste lote foi confirmado; refaça a conferência.')
     for target in {x['target']for x in prepared if x['changed']}:app.event(c,user,target,'performance_import')
     return app.reply(start,200,dict(ok=True,summary=summary))
+
+import selective as SELECT
