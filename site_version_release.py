@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 
 ROOT=Path(__file__).resolve().parent
-PUBLIC_VERSION = "3.8.3"
+PUBLIC_VERSION = "3.9.0"
 
 def main():
     path=ROOT/"static"/"app.html"
