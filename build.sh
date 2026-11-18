@@ -90,4 +90,5 @@ python finalize_v3712_build.py
 python finalize_v3713_build.py
 python inspect_ui_build.py
 python provisional_expiry_release.py
+python motor_v3718_release.py
 python -m pip install -r requirements.txt
