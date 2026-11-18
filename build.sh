@@ -94,4 +94,5 @@ python motor_v3718_release.py
 python student_view_v2_release.py
 python motor_profiles_release.py
 python school_reports_release.py
+python disciplines_catalog_release.py
 python -m pip install -r requirements.txt

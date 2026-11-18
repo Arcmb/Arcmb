@@ -45,3 +45,9 @@
 .sr-pri-media{background:#fde5c4;color:#7a4a05}
 .sr-pri-baixa{background:#e2f1e2;color:#2c5e2e}
 .sr-pri-dados{background:#eee;color:#666}
+
+/* disciplines_catalog.js v3.12.0 */
+.dc-table input,.dc-table select{width:100%;min-width:120px}
+.dc-table td:nth-child(3) input{min-width:260px}
+.dc-ok{background:#e2f1e2;color:#2c5e2e}
+.dc-change{background:#fde5c4;color:#7a4a05}
