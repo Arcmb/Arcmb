@@ -58,6 +58,7 @@ const nav=document.getElementById('nav');
  if(nav){
   nav.querySelectorAll('[data-view="reviews"]:not([data-sv-merged])').forEach(b=>b.remove());
   if(svActive())nav.querySelectorAll('[data-view="password"]').forEach(b=>b.remove());
+  if(svActive()||!(typeof manages==='function'&&manages()))nav.querySelectorAll('[data-view="data"]').forEach(b=>b.remove());
   const rev=nav.querySelector('[data-sv-merged]')||nav.querySelector('[data-view="review-table"]');
   if(rev){
    rev.dataset.svMerged='1';
@@ -99,6 +100,7 @@ function svChrome(){
  const baseRender=render;
  render=function(){
   if(svActive()&&view==='password')view='home';
+  if(view==='data'&&(svActive()||!(typeof manages==='function'&&manages())))view='home';
   const out=baseRender.apply(this,arguments);
   try{svChrome();}catch(_){}
   return out;
