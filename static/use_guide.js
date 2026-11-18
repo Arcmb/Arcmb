@@ -6,7 +6,7 @@
  const norm=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim();
  const slug=value=>norm(value).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'aba';
  function learnerId(){try{return String(typeof target!=='undefined'&&target?target:'self');}catch(_){return 'self';}}
- function autoTutorialAllowed(){try{return typeof manages==='function'?!manages():true;}catch(_){return true;}}
+ function autoTutorialAllowed(){try{if(typeof window.qiOnboardingPending==='function'&&window.qiOnboardingPending())return false;return typeof manages==='function'?!manages():true;}catch(_){return true;}}
  function storageKey(key){return `meucronograma:tutorial:${VERSION}:${learnerId()}:${key}`;}
  function wasSeen(key){try{return localStorage.getItem(storageKey(key))==='1';}catch(_){return false;}}
  function markSeen(key){try{localStorage.setItem(storageKey(key),'1');}catch(_){}}

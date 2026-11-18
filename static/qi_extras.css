@@ -59,3 +59,66 @@
 .en-t0{background:#e2f1e2;color:#2c5e2e}.en-t1{background:#fbefc9;color:#6b5205}.en-t2{background:#fbdcc9;color:#7a3a10}.en-t3{background:#f8d2d7;color:#8a1f33}
 .en-file{display:flex;flex-direction:column;gap:4px}
 .en-preview{border-top:1px solid var(--line,#ecd2d7);margin-top:12px;padding-top:8px}
+
+/* onboarding.js v3.14.0 — primeiro acesso guiado */
+body.ob-lock{overflow:hidden}
+#ob-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(48,18,26,.55);backdrop-filter:blur(6px);animation:ob-fade .25s ease-out}
+.ob-panel{position:relative;width:min(760px,100%);max-height:calc(100vh - 32px);overflow:auto;background:#fff;border-radius:24px;box-shadow:0 30px 80px rgba(60,10,25,.35);padding:28px 32px 24px;animation:ob-rise .35s cubic-bezier(.2,.9,.3,1.2)}
+.ob-progress{height:6px;border-radius:6px;background:#f3e3e6;overflow:hidden;margin:0 0 22px}
+.ob-progress span{display:block;height:100%;background:linear-gradient(90deg,#b65362,#e08a5a);border-radius:6px;transition:width .4s ease}
+.ob-body{animation:ob-slide .3s ease-out}
+.ob-body h1{font-size:2.2rem;margin:.2em 0 .25em;color:#3b2026}
+.ob-body h2{font-size:1.35rem;margin:0 0 .25em;color:#3b2026}
+.ob-mt{margin-top:1.4em!important}
+.ob-sub{color:#7b5c62;margin:0 0 16px}
+.ob-hero{border-radius:18px;padding:26px 24px;background:linear-gradient(135deg,#8f2f42 0%,#b65362 55%,#e08a5a 100%);color:#fff;position:relative;overflow:hidden}
+.ob-hero h1{color:#fff}
+.ob-hero p{margin:0;font-size:1.05rem;opacity:.95}
+.ob-badge{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:rgba(255,255,255,.2);padding:4px 10px;border-radius:999px}
+.ob-perks{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+.ob-perk{border:1px solid #f0dde1;border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:4px;animation:ob-slide .4s ease-out both}
+.ob-perk:nth-child(2){animation-delay:.08s}.ob-perk:nth-child(3){animation-delay:.16s}
+.ob-perk small{color:#7b5c62}
+.ob-ico{font-size:1.6rem}
+.ob-chips{display:flex;flex-wrap:wrap;gap:8px}
+.ob-chip{border:2px solid #ecd2d7;background:#fff;color:#3b2026;border-radius:999px;padding:9px 16px;font:inherit;font-weight:600;cursor:pointer;transition:transform .12s,background .15s,border-color .15s}
+.ob-chip:hover{border-color:#b65362}
+.ob-chip.on{background:#b65362;border-color:#b65362;color:#fff;animation:ob-pop .22s ease-out}
+.ob-other{display:flex;flex-direction:column;gap:6px;margin-top:14px;font-weight:600;color:#3b2026}
+.ob-other input{font:inherit;padding:10px 12px;border:2px solid #ecd2d7;border-radius:12px}
+.ob-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.ob-card{display:flex;flex-direction:column;gap:2px;text-align:left;border:2px solid #ecd2d7;background:#fff;border-radius:16px;padding:12px;font:inherit;cursor:pointer;color:#3b2026;transition:transform .12s,border-color .15s}
+.ob-card small{color:#7b5c62}
+.ob-card.on{border-color:#b65362;background:#fbf0f2;animation:ob-pop .22s ease-out}
+.ob-grid{display:grid;grid-template-columns:96px repeat(7,1fr);gap:6px;align-items:center}
+.ob-day{text-align:center;font-weight:700;color:#7b5c62;font-size:.85rem}
+.ob-period{font-weight:700;color:#3b2026;display:flex;flex-direction:column;font-size:.9rem}
+.ob-period small{font-weight:400;color:#7b5c62;font-size:.75rem}
+.ob-slot{height:46px;border-radius:12px;border:2px dashed #e6c9cf;background:#fff;color:#fff;font-weight:800;cursor:pointer;transition:transform .1s,background .15s}
+.ob-slot:hover{border-color:#b65362}
+.ob-slot.on{background:linear-gradient(135deg,#b65362,#e08a5a);border:2px solid transparent;animation:ob-pop .2s ease-out}
+.ob-quick{display:flex;flex-wrap:wrap;gap:14px;margin:12px 0 4px}
+.ob-link{background:none;border:0;color:#b65362;font:inherit;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px}
+.ob-total{margin-top:10px;padding:10px 14px;border-radius:12px;background:#f7eef0;color:#7b5c62}
+.ob-total.on{background:#eaf6ec;color:#2c5e2e}
+.ob-total strong{font-size:1.2rem}
+.ob-count{color:#7b5c62;margin:10px 0 0}
+.ob-next-list,.ob-next{margin:16px 0 0}
+ul.ob-next{padding-left:1.1em;line-height:1.7}
+.ob-error{color:#8a1f33;background:#f8d2d7;border-radius:10px;padding:8px 12px}
+.ob-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:22px}
+button.ob-next{margin:0;border:0;border-radius:999px;padding:12px 26px;font:inherit;font-weight:800;color:#fff;background:linear-gradient(135deg,#8f2f42,#b65362);box-shadow:0 8px 20px rgba(143,47,66,.3);cursor:pointer;transition:transform .12s,box-shadow .12s}
+button.ob-next:hover:not([disabled]){transform:translateY(-1px);box-shadow:0 12px 26px rgba(143,47,66,.35)}
+button.ob-next[disabled]{opacity:.45;cursor:not-allowed;box-shadow:none}
+.ob-back{background:none;border:0;color:#7b5c62;font:inherit;font-weight:600;cursor:pointer;padding:10px 6px}
+.ob-done{text-align:center}
+.ob-burst{position:absolute;left:50%;top:50%;width:0;height:0}
+.ob-burst i{position:absolute;width:9px;height:9px;border-radius:3px;background:#ffd36e;transform:rotate(calc(var(--i) * 25.7deg)) translateY(0);animation:ob-burst 1s ease-out forwards;opacity:0}
+.ob-burst i:nth-child(3n){background:#fff}.ob-burst i:nth-child(3n+1){background:#ffb3a1}
+@keyframes ob-burst{0%{opacity:1;transform:rotate(calc(var(--i) * 25.7deg)) translateY(0)}100%{opacity:0;transform:rotate(calc(var(--i) * 25.7deg)) translateY(-150px)}}
+@keyframes ob-fade{from{opacity:0}to{opacity:1}}
+@keyframes ob-rise{from{opacity:0;transform:translateY(24px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes ob-slide{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+@keyframes ob-pop{0%{transform:scale(.92)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
+@media (max-width:640px){.ob-panel{padding:20px 16px;border-radius:20px}.ob-perks{grid-template-columns:1fr}.ob-cards{grid-template-columns:repeat(2,1fr)}.ob-grid{grid-template-columns:62px repeat(7,1fr);gap:4px}.ob-slot{height:40px;border-radius:10px}.ob-body h1{font-size:1.7rem}}
+@media (prefers-reduced-motion:reduce){#ob-overlay,.ob-panel,.ob-body,.ob-perk,.ob-chip.on,.ob-card.on,.ob-slot.on,.ob-burst i{animation:none!important;transition:none!important}}

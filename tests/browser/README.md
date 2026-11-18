@@ -3,7 +3,8 @@
 Cada arquivo `0N_*.mjs` abre o site local num Chrome sem janela e confere um fluxo real
 (login, menu, visão do aluno, "Voltar ao meu usuário", relatórios, perfis de foco, cadastro de disciplinas).
 
-    bash tests/browser/run.sh
+    bash tests/browser/run.sh            (todos)
+    bash tests/browser/run.sh primeiro   (só os cenários com "primeiro" no nome)
 
 O script cria um banco temporário com dados sintéticos (`seed.py`), sobe o site em http://127.0.0.1:8765,
 roda os cenários em ordem e termina com `BROWSER_TESTS_OK` ou `BROWSER_TESTS_FAILED`.

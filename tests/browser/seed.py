@@ -64,3 +64,9 @@ with app.db.connection(write=True) as c:
         m={f"questao:{it['number']:03d}":{'correct':int(random.random()<0.5),'total':1} for it in ITEMS}
         md={'_exam_id':'ex1','TURMA':'3º A','COR DA PROVA':'AZUL','_tri_general':600.0,'_tri_lc':600.0,'_tri_ch':600.0,'_tri_cn':600.0,'_tri_mt':600.0,'_tri_redaction':600,**{f'_redaction_c{k+1}':120 for k in range(5)}}
         app.db.execute(c,'INSERT INTO hmay_performance(id,user_id,activity_key,activity,applied_on,metrics,metadata,version,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',(P.uid(),uid,'simprev','Simulado anterior',f'{_prev}-06-10',json.dumps(m),json.dumps(md),1,P.now().isoformat()))
+# Todos os alunos acima já passaram pelo primeiro acesso; "novo.aluno" ainda não (cenário 09).
+with app.db.connection(write=True) as c:
+    for r in app.db.execute(c,'SELECT user_id,profile FROM hmay_state').fetchall():
+        prof=json.loads(r['profile']);prof.setdefault('settings',{})['onboardedAt']='2026-01-01'
+        app.db.execute(c,'UPDATE hmay_state SET profile=? WHERE user_id=?',(json.dumps(prof),r['user_id']))
+    app.db.create_user(c,'novo.aluno','Novo Aluno da Silva','TEST_aluno_1234','aluno',False)

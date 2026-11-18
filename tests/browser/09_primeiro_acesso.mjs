@@ -1,0 +1,57 @@
+const list=await (await fetch('http://127.0.0.1:9222/json/list')).json();const page=list.find(x=>x.type==='page');
+const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let id=0;const pend={};const errors=[];
+ws.onmessage=m=>{const d=JSON.parse(m.data);if(d.id&&pend[d.id]){pend[d.id](d);delete pend[d.id];}if(d.method==='Runtime.exceptionThrown')errors.push((d.params.exceptionDetails.exception?.description||d.params.exceptionDetails.text||'').split('\n')[0]);};
+const send=(method,params={})=>new Promise(r=>{const i=++id;pend[i]=r;ws.send(JSON.stringify({id:i,method,params}));});const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const ev=async e=>{const r=await send('Runtime.evaluate',{expression:e,awaitPromise:true,returnByValue:true});return r.result.exceptionDetails?'ERR '+(r.result.exceptionDetails.exception?.description||'').split('\n')[0]:r.result.result.value;};
+await send('Runtime.enable');await send('Network.enable');
+let fails=0;const check=(label,cond,extra='')=>{console.log((cond?'OK  ':'FALHA ')+label+(extra?' → '+extra:''));if(!cond)fails++;};
+async function login(u,p){await send('Network.clearBrowserCookies');await send('Page.navigate',{url:'http://127.0.0.1:8765/login'});await sleep(1500);await ev(`document.querySelector('[name=username]').value='${u}';document.querySelector('[name=password]').value='${p}';document.querySelector('form').submit()`);await sleep(3500);await ev(`document.querySelectorAll('dialog[open],.guide-overlay,.use-guide').forEach(x=>x.remove?.());1`);}
+const nav=()=>ev(`[...document.querySelectorAll('#nav button')].map(b=>b.textContent.replace(/^\\d+/,'').trim()).join(' | ')`);
+const search=async q=>{await ev(`{const i=document.querySelector('#account-search');i.focus();i.value=${JSON.stringify(q)};i.dispatchEvent(new Event('input',{bubbles:true}));}1`);await sleep(300);await ev(`document.querySelector('.account-search-result').dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));1`);await sleep(2500);};
+const shot=async n=>{const r=await send('Page.captureScreenshot',{format:'png'});(await import('fs')).writeFileSync('/tmp/qi-browser-'+n+'.png',Buffer.from(r.result.data,'base64'));};
+const click=async sel=>{await ev(`(()=>{const b=document.querySelector(${JSON.stringify(sel)});if(!b)return 0;b.click();return 1})()`);await sleep(500);};
+// Aluno que já passou pelo primeiro acesso não vê o passo a passo
+await login('ana.souza','TEST_aluno_1234');
+check('Aluno antigo sem passo a passo',await ev(`!document.querySelector('#ob-overlay')`));
+// Aluno novo
+await login('novo.aluno','TEST_aluno_1234');await sleep(800);
+check('Passo a passo abre no primeiro acesso',await ev(`!!document.querySelector('#ob-overlay .ob-hero')`));
+check('Saudação com o primeiro nome',(await ev(`document.querySelector('#ob-overlay h1').textContent`)).includes('Novo'));
+await sleep(1500);check('Guia rápido não abre por cima',await ev(`![...document.querySelectorAll('.use-guide-overlay')].some(x=>x.classList.contains('open')&&getComputedStyle(x).display!=='none')`));
+check('Visual aplicado (CSS)',await ev(`getComputedStyle(document.querySelector('.ob-panel')).borderRadius`)==='24px');
+await shot('ob-1');
+await click('[data-act="ob-later"]');
+check('Fazer depois fecha',await ev(`!document.querySelector('#ob-overlay')`));
+await ev(`sessionStorage.clear();render();1`);await sleep(600);
+check('Volta a abrir em novo acesso',await ev(`!!document.querySelector('#ob-overlay')`));
+await click('[data-act="ob-next"]');
+await click('[data-act="ob-goal"][data-v="Medicina"]');await click('[data-act="ob-energy"][data-v="noite"]');
+check('Objetivo e período marcados',await ev(`document.querySelectorAll('#ob-overlay .on').length`)===2);
+await shot('ob-2');
+await click('[data-act="ob-next"]');
+check('Continuar bloqueado sem horário',await ev(`document.querySelector('[data-act="ob-next"]').disabled`));
+await click('[data-act="ob-preset"][data-v="noites"]');await click('[data-act="ob-slot"][data-v="5:m"]');
+check('Total de horas calculado',/21h30/.test(await ev(`document.querySelector('.ob-total').textContent`)),await ev(`document.querySelector('.ob-total').textContent`));
+await shot('ob-3');
+await click('[data-act="ob-next"]');
+for(const d of ['Matemática','Química','Física'])await click(`[data-act="ob-hard"][data-v="${d}"]`);
+check('Três disciplinas escolhidas',(await ev(`document.querySelector('.ob-count').textContent`)).startsWith('3'));
+await shot('ob-4');
+await click('[data-act="ob-next"]');await sleep(4000);
+check('Tela final',await ev(`!!document.querySelector('#ob-overlay .ob-done')`),await ev(`document.querySelector('#ob-overlay .ob-error')?.textContent||''`));
+await shot('ob-5');
+const saved=await ev(`JSON.stringify({on:P.settings.onboardedAt,pref:P.settings.preferred,goal:P.settings.onboardingGoal,wk:P.settings.weeklyGoal,av:P.availability.map(a=>a.status[0]+a.ranges.length).join(''),subj:P.subjects.map(s=>s.name+':'+s.difficulty).join(','),sess:P.sessions.length})`);
+const o=JSON.parse(saved);
+check('Salvou objetivo e período',o.goal==='Medicina'&&o.pref==='noite'&&!!o.on,saved);
+check('Salvou horários (seg–sex noite + sáb manhã; dom indisponível)',o.av==='a1a1a1a1a1a1u0',o.av);
+check('Meta semanal ajustada às horas livres',o.wk<=1040&&o.wk>=60,String(o.wk));
+check('Criou as disciplinas com dificuldade alta',/Matemática:4/.test(o.subj)&&/Química:4/.test(o.subj)&&/Física:4/.test(o.subj),o.subj);
+check('Semana gerada',o.sess>0,String(o.sess));
+await click('[data-act="ob-next"]');await sleep(1500);
+check('Vai para o Quadro semanal',await ev('view')==='calendar'&&await ev(`!document.querySelector('#ob-overlay')`));
+await login('novo.aluno','TEST_aluno_1234');
+check('Não abre de novo depois de concluído',await ev(`!document.querySelector('#ob-overlay')`));
+// Gestão vendo o aluno novo não recebe o passo a passo
+await login('laise','TEST_coord_1234');await search('Bruno');await sleep(2500);
+check('Gestão na visão do aluno sem passo a passo',await ev(`!document.querySelector('#ob-overlay')`));
+const jsErrors=[...new Set(errors)];console.log('Falhas:',fails,'Erros JS:',jsErrors);process.exit(fails||jsErrors.length?1:0);
