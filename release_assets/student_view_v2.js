@@ -78,7 +78,7 @@ function svChrome(){
   if(label)label.textContent=ME.name+' · Aluno (visualização de '+svOwner.name+')';
   if(note){
    note.hidden=false;
-   note.innerHTML=`<strong>Você está vendo o Meu Cronograma como ${esc(ME.name)} vê.</strong> As alterações feitas aqui são salvas na conta do aluno. <button type="button" class="secondary" data-act="student-view-return" style="margin-left:.75rem">Voltar ao meu usuário</button>`;
+   note.innerHTML=`<strong>Você está vendo o Meu Cronograma como ${esc(ME.name)} vê.</strong> As alterações feitas aqui são salvas na conta do aluno. <button type="button" class="secondary" data-act="student-view-return">Voltar ao meu usuário</button>`;
   }
  }
  svNavFix();

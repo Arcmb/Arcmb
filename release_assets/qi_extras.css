@@ -1,0 +1,40 @@
+/* Estilos das funções v3.8.2+ (a política de segurança bloqueia <style> inline). */
+/* student_view_v2.js */
+.sv-subtabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line,#ecd2d7);margin:0 0 16px}
+.sv-subtabs button{border:0;background:transparent;color:var(--muted,#7b5c62);padding:8px 14px;border-bottom:3px solid transparent;font:inherit;font-weight:600;cursor:pointer;border-radius:0}
+.sv-subtabs button.active{color:var(--ink,#3b2026);border-bottom-color:var(--primary,#b65362)}
+.sv-subtabs button:focus-visible{outline:3px solid var(--primary,#b65362);outline-offset:2px}
+
+/* motor_profiles.js */
+.mp-card .mp-current{margin:.25rem 0}
+.mp-choose{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:8px}
+.mp-choose label{flex:1 1 320px}
+.mp-table input,.mp-table select{width:100%;min-width:70px}
+.mp-table .mp-desc{margin-top:6px;font-size:.85em}
+
+/* school_reports.js */
+.sr-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line,#ecd2d7);margin:0 0 16px}
+.sr-tabs button{border:0;background:transparent;color:var(--muted,#7b5c62);padding:8px 14px;border-bottom:3px solid transparent;font:inherit;font-weight:600;cursor:pointer;border-radius:0}
+.sr-tabs button.active{color:var(--ink,#3b2026);border-bottom-color:var(--primary,#b65362)}
+.sr-filters{align-items:flex-end;flex-wrap:wrap}
+.sr-filters label{min-width:180px}
+.sr-chips{flex-wrap:wrap}
+.sr-table td,.sr-table th{white-space:nowrap}
+.sr-heat{text-align:center;font-variant-numeric:tabular-nums;font-weight:600}
+#main table td.sr-h1{background:#f8d2d7!important;color:#8a1f33!important}
+#main table td.sr-h2{background:#fde5c4!important;color:#7a4a05!important}
+#main table td.sr-h3{background:#e2f1e2!important;color:#2c5e2e!important}
+#main table td.sr-h4{background:#c9e8cf!important;color:#1d4d26!important}
+#main table td.sr-na{color:#999!important}
+#main table td.sr-weak{background:#f8d2d7!important;color:#8a1f33!important;font-weight:700}
+#main table tr.sr-total td{background:#fbf2f4!important;font-weight:600}
+.sr-bar{display:flex;height:12px;width:220px;border-radius:6px;overflow:hidden;background:#eee}
+.sr-bar span{display:block;height:100%}
+.sr-key{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:middle}
+.sr-p0{background:#c25c69}
+.sr-p1{background:#4f6fb0}
+.sr-p2{background:#d39a2c}
+.sr-p3{background:#2f7d5b}
+.sr-flag-queda{background:#f8d2d7;color:#8a1f33}
+.sr-flag-falta{background:#fde5c4;color:#7a4a05}
+.sr-flag-recorrencia{background:#e6defa;color:#4b2f8a}
