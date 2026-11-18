@@ -86,6 +86,34 @@ class SchoolReportsTests(unittest.TestCase):
         self.assertEqual(d['rows'][0]['subject'], 'Estequiometria')
         self.assertEqual(rows['Estequiometria']['turmas']['Turma B'], 0.0)
 
+    def test_disciplines_priorities(self):
+        d = self.coord.request('/api/school-reports/disciplines')['data']
+        by = {x['discipline']: x for x in d['disciplines']}
+        q = by['Química']
+        est = q['subjects'][0]
+        # Estequiometria: 31 erros em 35 respostas, 5 questões → prioridade alta; todos os 6 alunos com dificuldade
+        self.assertEqual((est['label'], est['error'], est['questions'], est['priority']), ('Estequiometria', round(100 * 31 / 35, 1), 5, 'alta'))
+        self.assertEqual((est['struggling'], est['students']), (6, 6))
+        self.assertEqual(q['high'], 1)
+        self.assertEqual(by['Matemática']['subjects'][0]['priority'], 'baixa')
+        # habilidades: 7 respostas cada → poucos dados
+        self.assertTrue(all(s['priority'] == 'dados' and s['answers'] == 7 for s in q['skills']))
+        self.assertIn('H06', [s['label'] for s in q['skills']])
+        only_b = self.coord.request('/api/school-reports/disciplines?turma=Turma+B')['data']
+        qb = {x['discipline']: x for x in only_b['disciplines']}['Química']
+        self.assertEqual((qb['answers'], qb['error'], qb['subjects'][0]['priority']), (5, 100.0, 'dados'))
+
+    def test_most_missed(self):
+        d = self.coord.request('/api/school-reports/most-missed')['data']
+        top = d['rows'][0]
+        self.assertEqual(top['subject'], 'Estequiometria')
+        self.assertTrue(top['everywhere'])
+        self.assertEqual((top['above'], top['withData']), (2, 2))
+        self.assertEqual(top['turmas']['Turma A'], round(100 * 26 / 30, 1))
+        fun = {r['subject']: r for r in d['rows']}['Funções']
+        self.assertEqual(fun['above'], 0)
+        self.assertEqual(self.student.request('/api/school-reports/most-missed')['status'], 403)
+
     def test_redaction(self):
         d = self.coord.request('/api/school-reports/redaction')['data']
         by = {r['turma']: r for r in d['rows']}

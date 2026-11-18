@@ -39,7 +39,7 @@ def main():
     html = html_path.read_text(encoding='utf-8')
     if '/static/school_reports.js' not in html:
         html = patch(html, '<script src="/static/motor_profiles.js?v=3.9.0" defer></script>',
-                     '<script src="/static/motor_profiles.js?v=3.9.0" defer></script><script src="/static/school_reports.js?v=3.10.0" defer></script>', 'script tag')
+                     '<script src="/static/motor_profiles.js?v=3.9.0" defer></script><script src="/static/school_reports.js?v=3.11.0" defer></script>', 'script tag')
         html_path.write_text(html, encoding='utf-8')
     install_css()
     print('MEUCRONOGRAMA_V3100_SCHOOL_REPORTS_READY: attention list, item analysis, topic matrix, essay competencies, profiles by class.', flush=True)
@@ -57,7 +57,7 @@ def install_css():
     html_path = ROOT / 'static' / 'app.html'
     html = html_path.read_text(encoding='utf-8')
     if '/static/qi_extras.css' not in html:
-        html = patch(html, '</head>', '<link rel="stylesheet" href="/static/qi_extras.css?v=3.10.0"></head>', 'css link')
+        html = patch(html, '</head>', '<link rel="stylesheet" href="/static/qi_extras.css?v=3.11.0"></head>', 'css link')
         html_path.write_text(html, encoding='utf-8')
 
 

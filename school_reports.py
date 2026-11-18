@@ -310,6 +310,137 @@ def profiles(d, cfg):
     return {'rows': rows, 'labels': labels, 'order': list(MOTOR.PROFILE_KEYS)}
 
 
+# ---------------------------------------------------------------- respostas item a item
+
+def _answers(d, tokens=None, turma=''):
+    """Gera (linha, item, turma, acerto) para cada questão respondida no período."""
+    tokens = set(tokens or [])
+    for r in d.rows:
+        if tokens and r['key'] + '@@' + r['date'] not in tokens:
+            continue
+        t = d.turma(r['md'])
+        if turma and t != turma:
+            continue
+        ex = d.exam(str(r['md'].get('_exam_id') or ''))
+        if not ex:
+            continue
+        lang = _norm(r['md'].get('L.E'))
+        by_n = {}
+        for it in ex['items']:
+            if not isinstance(it, dict):
+                continue
+            il = _norm(it.get('language'))
+            if il and lang and il != lang:
+                continue
+            try:
+                by_n.setdefault(int(it.get('number') or 0), it)
+            except (TypeError, ValueError):
+                continue
+        for k, v in d.metrics(r).items():
+            if not k.startswith('questao:') or not isinstance(v, dict) or v.get('correct') not in (0, 1):
+                continue
+            try:
+                it = by_n.get(int(k.split(':')[1]))
+            except (TypeError, ValueError):
+                continue
+            if not it or str(it.get('answer') or '').upper() == 'ANULADA':
+                continue
+            yield r, it, t, v['correct'], ex['id']
+
+
+def _err(ok, tot):
+    return round(100 * (tot - ok) / tot, 1) if tot else None
+
+
+MIN_ANSWERS = 10
+
+
+def _priority(error, answers, questions):
+    """Regra explicável: dificuldade (erro) combinada com recorrência nos simulados (nº de questões)."""
+    if answers < MIN_ANSWERS or error is None:
+        return 'dados'
+    if error >= 60 or (error >= 50 and questions >= 3):
+        return 'alta'
+    if error >= 40:
+        return 'media'
+    return 'baixa'
+
+
+_PRI_ORDER = {'alta': 0, 'media': 1, 'baixa': 2, 'dados': 3}
+
+
+# ---------------------------------------------------------------- 6. por disciplina (professor)
+
+def by_discipline(d, tokens=None, turma=''):
+    discs = {}
+    turmas = set()
+    for r, it, t, ok, exam_id in _answers(d, tokens):
+        turmas.add(t)
+        if turma and t != turma:
+            continue
+        disc = str(it.get('discipline') or 'Não informada').strip()
+        subj = str(it.get('subject') or it.get('topic') or 'Não informado').strip()
+        skill = str(it.get('skill') or '').strip() or 'Sem habilidade'
+        D = discs.setdefault(_norm(disc), {'name': disc, 'area': str(it.get('area') or ''), 'ok': 0, 'tot': 0, 'subjects': {}, 'skills': {}})
+        D['ok'] += ok; D['tot'] += 1
+        for bucket, key, label in (('subjects', _norm(subj), subj), ('skills', _norm(skill), skill)):
+            e = D[bucket].setdefault(key, {'label': label, 'ok': 0, 'tot': 0, 'questions': set(), 'users': defaultdict(lambda: [0, 0]), 'related': defaultdict(int)})
+            e['ok'] += ok; e['tot'] += 1
+            e['questions'].add((exam_id, it.get('number')))
+            e['users'][r['user']][0] += ok; e['users'][r['user']][1] += 1
+            e['related'][skill if bucket == 'subjects' else subj] += 1
+
+    def pack(e):
+        error = _err(e['ok'], e['tot'])
+        struggling = sum(1 for a, b in e['users'].values() if b >= 2 and (b - a) / b >= 0.5)
+        related = [k for k, _ in sorted(e['related'].items(), key=lambda kv: -kv[1])[:3]]
+        return {'label': e['label'], 'answers': e['tot'], 'questions': len(e['questions']), 'error': error,
+                'students': len(e['users']), 'struggling': struggling, 'related': related,
+                'priority': _priority(error, e['tot'], len(e['questions']))}
+
+    out = []
+    for D in discs.values():
+        subjects = sorted((pack(e) for e in D['subjects'].values()), key=lambda x: (_PRI_ORDER[x['priority']], -(x['error'] or 0)))
+        skills = sorted((pack(e) for e in D['skills'].values()), key=lambda x: (_PRI_ORDER[x['priority']], -(x['error'] or 0)))
+        out.append({'discipline': D['name'], 'area': D['area'], 'answers': D['tot'], 'error': _err(D['ok'], D['tot']),
+                    'high': sum(1 for x in subjects if x['priority'] == 'alta'), 'subjects': subjects, 'skills': skills})
+    out.sort(key=lambda x: (x['area'], x['discipline']))
+    return {'disciplines': out, 'turmas': sorted(turmas), 'minAnswers': MIN_ANSWERS}
+
+
+# ---------------------------------------------------------------- 7. mais errados em todas as turmas
+
+def most_missed(d, tokens=None, area=''):
+    cells = defaultdict(lambda: defaultdict(lambda: [0, 0]))
+    meta, qs = {}, defaultdict(set)
+    turmas = set()
+    for r, it, t, ok, exam_id in _answers(d, tokens):
+        if area and str(it.get('area') or '').upper() != area.upper():
+            continue
+        turmas.add(t)
+        disc = str(it.get('discipline') or 'Não informada').strip()
+        subj = str(it.get('subject') or it.get('topic') or 'Não informado').strip()
+        key = (_norm(disc), _norm(subj))
+        meta.setdefault(key, (disc, subj, str(it.get('area') or '')))
+        qs[key].add((exam_id, it.get('number')))
+        for k in (t, '__all__'):
+            cells[key][k][0] += ok; cells[key][k][1] += 1
+    rows = []
+    for key, per in cells.items():
+        a, b = per['__all__']
+        if b < MIN_ANSWERS:
+            continue
+        disc, subj, ar = meta[key]
+        by_t = {t: _err(x, y) for t, (x, y) in per.items() if t != '__all__' and y >= 3}
+        above = [t for t, e in by_t.items() if e is not None and e >= 50]
+        worst = max(by_t.items(), key=lambda kv: kv[1])[0] if by_t else ''
+        rows.append({'area': ar, 'discipline': disc, 'subject': subj, 'answers': b, 'questions': len(qs[key]), 'error': _err(a, b),
+                     'turmas': by_t, 'above': len(above), 'withData': len(by_t), 'everywhere': bool(by_t) and len(above) == len(by_t),
+                     'worst': worst})
+    rows.sort(key=lambda x: (-x['above'] / max(1, x['withData']), -(x['error'] or 0)))
+    return {'rows': rows[:60], 'turmas': sorted(turmas), 'minAnswers': MIN_ANSWERS}
+
+
 # ---------------------------------------------------------------- API
 
 def handle(app, c, user, path, method, data, query, start, HTTPError):
@@ -332,6 +463,10 @@ def handle(app, c, user, path, method, data, query, start, HTTPError):
         return app.reply(start, 200, topics(d, tokens, q('area')))
     if path == '/api/school-reports/redaction':
         return app.reply(start, 200, redaction(d, tokens))
+    if path == '/api/school-reports/disciplines':
+        return app.reply(start, 200, by_discipline(d, tokens, q('turma')))
+    if path == '/api/school-reports/most-missed':
+        return app.reply(start, 200, most_missed(d, tokens, q('area')))
     if path == '/api/school-reports/profiles':
         return app.reply(start, 200, profiles(d, cfg))
     raise HTTPError(404, 'Relatório não encontrado.')

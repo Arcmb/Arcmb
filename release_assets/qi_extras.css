@@ -38,3 +38,10 @@
 .sr-flag-queda{background:#f8d2d7;color:#8a1f33}
 .sr-flag-falta{background:#fde5c4;color:#7a4a05}
 .sr-flag-recorrencia{background:#e6defa;color:#4b2f8a}
+
+/* school_reports.js v3.11.0 */
+.sr-pri{font-weight:700;white-space:nowrap}
+.sr-pri-alta{background:#f8d2d7;color:#8a1f33}
+.sr-pri-media{background:#fde5c4;color:#7a4a05}
+.sr-pri-baixa{background:#e2f1e2;color:#2c5e2e}
+.sr-pri-dados{background:#eee;color:#666}
