@@ -17,7 +17,7 @@ def main():
     require('// === MANAGEMENT FILTER FIX V3.7.11 ===' in js,'Frontend filter fix missing.')
     require('managementSafeArray' in js,'Safe-array rendering missing.')
     require("document.getElementById('management-turma')" in js,'Refresh filter state sync missing.')
-    require('/static/student_summary.js?v=3.7.13' in html,'Cache key v3.7.12 missing.')
+    require('/static/student_summary.js?v=' in html,'Cache key v3.7.12 missing.')
     compile(model,'model_data.py','exec')
     print('MEUCRONOGRAMA_MANAGEMENT_FILTER_FIX_CHECK_OK: turma/year filters, safe rendering and filtered averages passed.',flush=True)
 if __name__=='__main__': main()

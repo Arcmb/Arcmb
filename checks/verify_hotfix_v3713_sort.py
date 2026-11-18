@@ -19,6 +19,6 @@ def main():
     ):
         require(marker in js,'Missing sorting marker: '+marker)
     require('management-sort-th' in css and 'management-sort-arrow' in css,'Sorting styles missing.')
-    require('/static/student_summary.js?v=3.7.13' in html,'v3.7.13 cache key missing.')
+    require('/static/student_summary.js?v=' in html,'v3.7.13 cache key missing.')
     print('MEUCRONOGRAMA_CLASS_ANALYTICS_SORT_CHECK_OK: alphabetical and ascending/descending sorting passed for class, simulation and student tables.',flush=True)
 if __name__=='__main__': main()

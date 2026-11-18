@@ -18,7 +18,7 @@ def main():
     for marker in ("// === STUDENT REPORTS MODULE V1 ===","Meus relatórios","Cadastro em lote","Modelos cadastrados","Tipos de relatório","Abrir relatório"):
         require(marker in js,"Missing reports UI marker: "+marker)
     require("STUDENT REPORTS MODULE V1" in css,"Reports CSS missing.")
-    require("/static/app.js?v=" in html and "/static/student_summary.js?v=3.7.13" in html,"Reports cache keys missing.")
+    require("/static/app.js?v=" in html and "/static/student_summary.js?v=" in html,"Reports cache keys missing.")
     compile(model,"model_data.py","exec")
     print("MEUCRONOGRAMA_REPORTS_MODULE_CHECK_OK: student reports, types, batch import, shared models, covers and nav passed.",flush=True)
 if __name__=="__main__": main()

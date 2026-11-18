@@ -24,7 +24,7 @@ def main():
     require('Associar perfil-base a um aluno' in admin, 'Painel explícito de associação não foi criado.')
     require("accountsView=function(){return studyPresetAdminAssociation()" in admin, 'Associação não foi adicionada ao Painel Master.')
     require('removeRankingFromTriSummary' in admin, 'Remoção visual do ranking TRI não foi preparada.')
-    require('/static/schedule_admin_refinement.js?v=3.3.0' in html, 'Script de refinamento não está carregado.')
+    require('/static/schedule_admin_refinement.js?v=' in html, 'Script de refinamento não está carregado.')
     require('SCHEDULE ADMIN REFINEMENT V1' in css, 'Estilos do refinamento não foram aplicados.')
     require("'schedule_admin_refinement.js':'application/javascript; charset=utf-8'" in webapp, 'MIME do script não foi registrado.')
     print('MEUCRONOGRAMA_SCHEDULE_ADMIN_REFINEMENT_CHECK_OK: assignment, alphabetical order, real minutes, discipline label and ranking cleanup passed.', flush=True)

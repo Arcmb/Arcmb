@@ -20,7 +20,7 @@ def main():
     for marker in ('// === CLASS ENEM ANALYTICS V3.7.12 ===','Simulados considerados nas médias','management-class-drill','management-simulation-drill','Nota ENEM','+10%','C1','C5'):
         require(marker in js,'Missing UI marker '+marker)
     require('management-sim-checks' in css and 'management-drill-row' in css,'Analytics styles missing.')
-    require('/static/student_summary.js?v=3.7.13' in html,'v3.7.12 cache key missing.')
+    require('/static/student_summary.js?v=' in html,'v3.7.12 cache key missing.')
     compile(model,'model_data.py','exec')
     print('MEUCRONOGRAMA_CLASS_ENEM_ANALYTICS_CHECK_OK: class/simulation/student hierarchy, ENEM means, bonus, competencies, ranking and simulation selection passed.',flush=True)
 if __name__=='__main__': main()

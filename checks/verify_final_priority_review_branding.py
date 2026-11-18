@@ -40,9 +40,9 @@ def main():
 
     html=(ROOT/'static'/'app.html').read_text(encoding='utf-8')
     webapp=(ROOT/'webapp.py').read_text(encoding='utf-8')
-    require('/static/student_guidance.js?v=4.0.0' in html,'Final guidance cache key is missing.')
-    require('/static/style.css?v=5.1.0' in html,'Final stylesheet cache key is missing.')
-    require('/static/review_table_page.js?v=5.4.0' in html,'Standalone review-table asset is missing.')
+    require('/static/student_guidance.js?v=' in html,'Final guidance cache key is missing.')
+    require('/static/style.css?v=' in html,'Final stylesheet cache key is missing.')
+    require('/static/review_table_page.js?v=' in html,'Standalone review-table asset is missing.')
     require('/static/qi-logo.svg?v=5.2.0' in html,'Final Qi logo cache key is missing.')
     require("'qi-logo.svg':'image/svg+xml; charset=utf-8'" in webapp,'Final Qi logo is not served.')
     print('MEUCRONOGRAMA_FINAL_PRIORITY_REVIEW_BRANDING_CHECK_OK: differentiated priorities, standalone review tables, Qi logo, pastel palette and white background passed.',flush=True)

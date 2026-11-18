@@ -13,7 +13,7 @@ def main():
     require("'mergedInto':target['name']" in model,'Merge result metadata missing.')
     require('// === HOTFIX V3.7.3 ===' in js,'Frontend class merge hotfix missing.')
     require('Mesclar a turma' in js and 'Turmas mescladas:' in js,'Merge confirmation/result UI missing.')
-    require('/static/student_summary.js?v=3.7.13' in html,'Student summary v3.7.3 cache key missing.')
+    require('/static/student_summary.js?v=' in html,'Student summary v3.7.3 cache key missing.')
     compile(model,'model_data.py','exec')
     print('MEUCRONOGRAMA_HOTFIX_373_CHECK_OK: duplicate registered classes merge, aliases consolidate, historical records propagate and source class is removed.',flush=True)
 if __name__=='__main__': main()

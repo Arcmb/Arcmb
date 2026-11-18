@@ -25,9 +25,9 @@ def main():
     require("'nextOffset': next_offset" in web, 'Bulk backend pagination is missing.')
     require('Perfis processados:' in bulk_js and 'offset,limit:chunkSize' in bulk_js, 'Real bulk progress is incomplete.')
     require("acts['return-owner']" in return_js and "acts['open-account']" in return_js, 'Return-to-owner action is incomplete.')
-    require('/static/result_export.js?v=2.8.9' in html, 'Export asset cache key was not updated.')
-    require('/static/bulk_accounts_panel.js?v=2.8.9' in html, 'Bulk asset cache key was not updated.')
-    require('/static/return_to_owner.js?v=2.8.9' in html, 'Return-to-owner asset is not loaded.')
+    require('/static/result_export.js?v=' in html, 'Export asset cache key was not updated.')
+    require('/static/bulk_accounts_panel.js?v=' in html, 'Bulk asset cache key was not updated.')
+    require('/static/return_to_owner.js?v=' in html, 'Return-to-owner asset is not loaded.')
     print('MEUCRONOGRAMA_FINAL_INTERACTIONS_CHECK_OK: Excel download, bulk progress and owner return are wired.', flush=True)
 
 

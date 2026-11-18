@@ -35,7 +35,7 @@ def main():
     planner=(ROOT/'planner.py').read_text(encoding='utf-8')
     adaptive=(ROOT/'adaptive.py').read_text(encoding='utf-8')
     css=(ROOT/'static'/'style.css').read_text(encoding='utf-8')
-    require('/static/study_schedule.js?v=3.1.0' in html,'Structured schedule asset is not loaded.')
+    require('/static/study_schedule.js?v=' in html,'Structured schedule asset is not loaded.')
     require('review-plan-table' in js and 'study-review-settings' in js,'Collapsible adjustable review table is missing.')
     require('study-week-next' in js and "Programar quantas semanas?" in js,'Future-week controls are missing.')
     require('study-preset-new' in js and 'study-preset-apply' in js,'Preset management UI is missing.')

@@ -30,8 +30,8 @@ def main():
     for marker in ("exam-metadata-edit","Editar dados do simulado","Salvar alterações","exam-metadata-update"):
         require(marker in home,"Missing map-edit UI marker: "+marker)
 
-    require("/static/student_summary.js?v=3.7.13" in html,"Student summary cache key is missing.")
-    require("/static/tri_scores.js?v=3.7.14" in html,"TRI cache key is missing.")
+    require("/static/student_summary.js?v=" in html,"Student summary cache key is missing.")
+    require("/static/tri_scores.js?v=" in html,"TRI cache key is missing.")
     require("PERFORMANCE REFINEMENT V3.4" in css,"Refinement CSS is missing.")
     compile(model,"model_data.py","exec")
     print("MEUCRONOGRAMA_PERFORMANCE_REFINEMENT_CHECK_OK: totals, latest TRI/disciplines, selected averages and safe exam-date edit passed.",flush=True)

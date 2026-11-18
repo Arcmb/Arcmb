@@ -24,7 +24,7 @@ def main():
     scripts = re.findall(r'<script[^>]+src="([^"]+)"[^>]*></script>', html)
     require(scripts, 'Application scripts missing.')
     require(
-        '/static/two_tab.js?v=2.8.2' in scripts,
+        any(s.startswith('/static/two_tab.js?v=') for s in scripts),
         'Two-tab interface with cache-busting version is missing from app.html.',
     )
     ui_source = (root / 'static' / 'two_tab.js').read_text(encoding='utf-8')

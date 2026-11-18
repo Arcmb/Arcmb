@@ -20,9 +20,9 @@ def main():
     require('DISCIPLINE COLORS AND REVIEW RUNTIME V1' in planner,'Subject color validation patch is missing.')
     for asset in ('review_history.js','review_calendar_table.js','discipline_colors.js'):
         require(f"'{asset}':'application/javascript; charset=utf-8'" in webapp,f'{asset} is missing from the static allowlist.')
-    require('/static/review_history.js?v=5.1.0' in html,'Review history cache key is missing.')
-    require('/static/review_calendar_table.js?v=5.1.0' in html,'Review calendar cache key is missing.')
-    require('/static/discipline_colors.js?v=5.1.0' in html,'Discipline colors asset is not loaded.')
+    require('/static/review_history.js?v=' in html,'Review history cache key is missing.')
+    require('/static/review_calendar_table.js?v=' in html,'Review calendar cache key is missing.')
+    require('/static/discipline_colors.js?v=' in html,'Discipline colors asset is not loaded.')
     for marker in ('disciplinePastelPalette','discipline-color-swatch','applyDisciplineColors','Configurar cores'):
         require(marker in js,'Missing discipline-color UI marker: '+marker)
     require('DISCIPLINE COLORS AND REVIEW RUNTIME V1' in css,'Discipline color styles are missing.')

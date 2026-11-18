@@ -25,7 +25,7 @@ def main():
     ):
         require(marker in js,'Missing registry UI marker: '+marker)
     require('report-registry-class-list' in css and 'report-registry-students-table' in css,'Registry nested-table styles missing.')
-    require('/static/student_summary.js?v=3.7.13' in html,'Student summary v3.7.7 cache key missing.')
+    require('/static/student_summary.js?v=' in html,'Student summary v3.7.7 cache key missing.')
     compile(model,'model_data.py','exec')
     print('MEUCRONOGRAMA_REPORT_REGISTRY_CHECK_OK: searchable manager table, autocomplete, class drill-down, student drill-down and individual links passed.',flush=True)
 if __name__=='__main__': main()

@@ -472,9 +472,9 @@ managementAreaHtml=function(rows){
  if(!(rows||[]).length)return '<div class="notice">Sem dados de área para os filtros selecionados.</div>';
  return '<div class="management-area-grid">'+rows.map(x=>{
   const tri=Number(x.tri),max=Number(x.maxTri),hasTri=Number.isFinite(tri),hasMax=Number.isFinite(max)&&max>0;
-  const width=hasTri&&hasMax?Math.max(0,Math.min(100,100*tri/max)):0;
+  const width=hasTri?Math.max(0,Math.min(100,tri/10)):0,maxLeft=hasMax?Math.max(0,Math.min(100,max/10)):0;
   const tct=x.accuracy===null||x.accuracy===undefined?'':('<span>% acertos '+managementFmt(x.accuracy,1,'%')+'</span>');
-  return '<article><div class="management-area-title"><strong>'+esc(x.name)+'</strong><span>Média '+(hasTri?managementFmt(tri,1):'—')+(hasMax?' · Máxima '+managementFmt(max,1):'')+'</span></div><div class="management-bar tri-scale"><span style="width:'+width+'%"></span></div><div class="management-area-meta">'+tct+'<span>'+(hasMax?'Preenchimento relativo à maior nota observada':'Sem nota máxima disponível')+'</span></div></article>';
+  return '<article><div class="management-area-title"><strong>'+esc(x.name)+'</strong><span>Média '+(hasTri?managementFmt(tri,1):'—')+(hasMax?' · Máxima '+managementFmt(max,1):'')+'</span></div><div class="management-bar tri-scale"><span style="width:'+width+'%"></span>'+(hasMax?'<i class="tri-max-mark" style="left:'+maxLeft+'%" title="Máxima '+managementFmt(max,1)+'"></i>':'')+'</div><div class="management-area-meta">'+tct+'<span>'+(hasMax?'Barra: média na escala de 0 a 1000 · traço: nota máxima':'Barra: média na escala de 0 a 1000')+'</span></div></article>';
  }).join('')+'</div>';
 };
 

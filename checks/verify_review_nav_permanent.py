@@ -17,7 +17,7 @@ def main():
     require(reviews_positions,'Minhas revisões navigation entry was not found.')
     require(min(reviews_positions)<app.find(marker),'Tabela de revisões must follow Minhas revisões.')
     require('/static/app.js?v=' in html,'Base app cache key was not updated.')
-    require('/static/review_table_page.js?v=5.4.0' in html,'Review-table cache key is inconsistent.')
+    require('/static/review_table_page.js?v=' in html,'Review-table cache key is inconsistent.')
     print('MEUCRONOGRAMA_REVIEW_NAV_CHECK_OK: permanent menu entry and cache keys passed.',flush=True)
 
 

@@ -11,7 +11,7 @@ google-chrome --headless=new --no-sandbox --remote-debugging-port=9222 --window-
 trap 'kill $SERVER $CHROME 2>/dev/null; rm -rf "$TMP"' EXIT
 sleep 5
 FAILED=0
-for t in "$ROOT"/tests/browser/0*${1:-}*.mjs; do
+for t in "$ROOT"/tests/browser/[0-9]*${1:-}*.mjs; do
   echo "== $(basename "$t")"
   timeout 180 node "$t" >"$TMP/out.txt" 2>&1; code=$?
   grep -E "^(FALHA|Falhas)" "$TMP/out.txt" || tail -5 "$TMP/out.txt"

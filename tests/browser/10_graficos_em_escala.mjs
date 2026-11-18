@@ -1,0 +1,31 @@
+const list=await (await fetch('http://127.0.0.1:9222/json/list')).json();const page=list.find(x=>x.type==='page');
+const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let id=0;const pend={};const errors=[];
+ws.onmessage=m=>{const d=JSON.parse(m.data);if(d.id&&pend[d.id]){pend[d.id](d);delete pend[d.id];}if(d.method==='Runtime.exceptionThrown')errors.push((d.params.exceptionDetails.exception?.description||d.params.exceptionDetails.text||'').split('\n')[0]);};
+const send=(method,params={})=>new Promise(r=>{const i=++id;pend[i]=r;ws.send(JSON.stringify({id:i,method,params}));});const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const ev=async e=>{const r=await send('Runtime.evaluate',{expression:e,awaitPromise:true,returnByValue:true});return r.result.exceptionDetails?'ERR '+(r.result.exceptionDetails.exception?.description||'').split('\n')[0]:r.result.result.value;};
+await send('Runtime.enable');await send('Network.enable');
+let fails=0;const check=(label,cond,extra='')=>{console.log((cond?'OK  ':'FALHA ')+label+(extra?' → '+extra:''));if(!cond)fails++;};
+async function login(u,p){await send('Network.clearBrowserCookies');await send('Page.navigate',{url:'http://127.0.0.1:8765/login'});await sleep(1500);await ev(`document.querySelector('[name=username]').value='${u}';document.querySelector('[name=password]').value='${p}';document.querySelector('form').submit()`);await sleep(3500);await ev(`document.querySelectorAll('dialog[open],.guide-overlay,.use-guide').forEach(x=>x.remove?.());1`);}
+const nav=()=>ev(`[...document.querySelectorAll('#nav button')].map(b=>b.textContent.replace(/^\\d+/,'').trim()).join(' | ')`);
+const search=async q=>{await ev(`{const i=document.querySelector('#account-search');i.focus();i.value=${JSON.stringify(q)};i.dispatchEvent(new Event('input',{bubbles:true}));}1`);await sleep(300);await ev(`document.querySelector('.account-search-result').dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));1`);await sleep(2500);};
+const shot=async n=>{const r=await send('Page.captureScreenshot',{format:'png'});(await import('fs')).writeFileSync('/tmp/qi-browser-'+n+'.png',Buffer.from(r.result.data,'base64'));};
+const go=async label=>{await ev(`(()=>{const b=[...document.querySelectorAll('#nav button')].find(b=>b.textContent.includes(${JSON.stringify(label)}));if(b)b.click();return !!b})()`);await sleep(3500);};
+const _a=()=>ev(`(()=>{const els=[...document.querySelectorAll('#main [style]')];const ignored=els.filter(e=>e.style.length===0).length;
+ const bars=[...document.querySelectorAll('#main [style*="height:"],#main [style*="width:"]')].filter(e=>/%/.test(e.getAttribute('style'))&&e.parentElement&&e.parentElement.getBoundingClientRect().height>0);
+ let bad=0,checked=0;for(const e of bars){const m=e.getAttribute('style').match(/(height|width):\\s*([\\d.]+)%/);if(!m)continue;const p=e.parentElement.getBoundingClientRect(),r=e.getBoundingClientRect();const total=m[1]==='height'?p.height:p.width;if(total<20)continue;checked++;const got=100*(m[1]==='height'?r.height:r.width)/total;if(Math.abs(got-Number(m[2]))>3)bad++;}
+ return {styled:els.length,ignored,checked,bad};})()`);
+const audit=async()=>{const r=await _a();console.log('AUDIT',JSON.stringify(r));return r;};
+await login('laise','TEST_coord_1234');await sleep(3000);
+let a=await audit();
+check('Gestão · Visão geral: nenhum estilo ignorado',a.ignored===0,JSON.stringify(a));
+check('Gestão · Visão geral: barras no tamanho do valor',a.checked>0&&a.bad===0,JSON.stringify(a));
+await shot('graficos-gestao');
+const area=await ev(`(()=>{const s=document.querySelector('.management-bar.tri-scale span');if(!s)return null;const t=s.parentElement.getBoundingClientRect().width;return {pct:100*s.getBoundingClientRect().width/t,mark:!!document.querySelector('.tri-max-mark')}})()`);
+check('Áreas na escala 0–1000 com marca da máxima',area===null||(area.pct<100&&area.mark),JSON.stringify(area));
+await login('al1','TEST_aluno_1234');
+a=await audit();check('Aluno · Visão geral: barras no tamanho do valor',a.ignored===0&&a.bad===0,JSON.stringify(a));
+await shot('graficos-aluno-home');
+await go('Desempenho');a=await audit();
+check('Aluno · Desempenho: barras no tamanho do valor',a.ignored===0&&a.bad===0,JSON.stringify(a));
+await shot('graficos-aluno-desempenho');
+const jsErrors=[...new Set(errors)];console.log('Falhas:',fails,'Erros JS:',jsErrors);process.exit(fails||jsErrors.length?1:0);

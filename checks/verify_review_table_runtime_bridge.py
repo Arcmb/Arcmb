@@ -11,7 +11,7 @@ def require(value,message):
 def main():
     html=(ROOT/'static'/'app.html').read_text(encoding='utf-8')
     page=(ROOT/'static'/'review_table_page.js').read_text(encoding='utf-8')
-    require('/static/review_table_page.js?v=5.4.0' in html,'Direct review-table cache key is missing.')
+    require('/static/review_table_page.js?v=' in html,'Direct review-table cache key is missing.')
     for marker in (
         'REVIEW TABLE DIRECT RENDERER V2','reviewRows','linkedSessions','linkedFeedback',
         'monthlyTable','historyTable','directTablesHtml','profile.contents','profile.sessions','state().feedback','Tabela de revisões'

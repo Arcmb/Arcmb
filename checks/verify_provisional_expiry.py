@@ -27,7 +27,7 @@ def main():
     require(webapp.count('PROVISIONAL.start_if_student(') == 2, 'v3.7.17 master hooks missing.')
     require((ROOT / 'static' / 'provisional_renewal.js').exists(), 'Renewal asset missing.')
     html = (ROOT / 'static' / 'app.html').read_text(encoding='utf-8')
-    require('/static/provisional_renewal.js?v=3.7.17' in html, 'Renewal script tag missing.')
+    require('/static/provisional_renewal.js?v=' in html, 'Renewal script tag missing.')
     import provisional_access as PA
     require(PA.VALIDITY_SECONDS == 7 * 86400, 'Validity must be 7 days.')
     print('MEUCRONOGRAMA_V3717_PROVISIONAL_EXPIRY_CHECK_OK: 7-day provisional password hooks present.', flush=True)

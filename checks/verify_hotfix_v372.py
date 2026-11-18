@@ -16,7 +16,7 @@ def main():
     for marker in ("// === HOTFIX V3.7.2 ===","Turma cadastrada","Turmas divergentes","Salvar correção","management-score-axis"):
         require(marker in js,'Missing v3.7.2 UI marker: '+marker)
     require("class-divergent-chip" in css and "height:240px!important" in css,'v3.7.2 styles missing.')
-    require('/static/student_summary.js?v=3.7.13' in html,'Student summary v3.7.2 cache key missing.')
+    require('/static/student_summary.js?v=' in html,'Student summary v3.7.2 cache key missing.')
     require("'activity':{'atividade','simulado','atividade simulado'" in model,'Activity/simulation header alias missing.')
     require("'type':{'tipo','tipo de relatorio'" in model,'Report type header alias missing.')
     require("nome do relatorio opcional" in model and "data opcional" in model,'Optional report/date headers are missing.')

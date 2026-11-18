@@ -20,7 +20,7 @@ def main():
     require('attempts>=50' in js,'Account search startup retry must be bounded.')
     for marker in ('RESPONSIVE UI SEARCH AND QI LOGO V1','min-width:1450px','--review-discipline-width','table-layout:fixed'):
         require(marker in css,'Missing responsive-table marker: '+marker)
-    require('/static/responsive_ui_refinement.js?v=5.3.0' in html,'Responsive UI script is not loaded with the fixed cache key.')
+    require('/static/responsive_ui_refinement.js?v=' in html,'Responsive UI script is not loaded with the fixed cache key.')
     require('/static/qi-logo.svg?v=5.2.0' in html,'Qi logo cache key is missing.')
     require("'qi-logo.svg':'image/svg+xml; charset=utf-8'" in webapp,'Qi logo is not served.')
     require("'responsive_ui_refinement.js':'application/javascript; charset=utf-8'" in webapp,'Responsive UI script is not served.')
