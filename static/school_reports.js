@@ -1,12 +1,14 @@
 "use strict";
 // === RELATÓRIOS DA ESCOLA V3.11.0 ===
-const srState={tab:'atencao',data:{},loading:{},sims:null,flag:'',turma:'',sim:'',exam:'',area:'',scope:'',worst:true,disc:'',dview:'subjects'};
+const srState={tab:'atencao',data:{},loading:{},sims:null,flag:'',turma:'',sim:'',exam:'',area:'',scope:'',worst:true,disc:'',dview:'subjects',year:'',compare:'',years:[]};
 const SR_TABS=[['atencao','Alunos que pedem atenção'],['questoes','Análise por questão'],['assuntos','Assuntos × turmas'],['disciplina','Por disciplina'],['maiserrados','Mais errados nas turmas'],['redacao','Redação por competência'],['perfis','Perfis por turma']];
 const SR_FLAGS={queda:'Queda de nota',falta:'Faltou ao último simulado',recorrencia:'Erros repetidos',horarios:'Sem horários livres',acesso:'Nunca entrou'};
 
 function srManager(){return typeof manages==='function'&&manages();}
 function srQuery(){
  const p=new URLSearchParams();
+ if(srState.year)p.set('year',srState.year);
+ if(srState.compare&&['assuntos','redacao','disciplina','maiserrados'].includes(srState.tab))p.set('compare',srState.compare);
  if(srState.tab==='questoes'){if(srState.sim)p.set('sim',srState.sim);if(srState.exam)p.set('exam',srState.exam);}
  if(['assuntos','redacao','disciplina','maiserrados'].includes(srState.tab)&&srState.scope)p.set('sims',srState.scope);
  if(srState.tab==='disciplina'&&srState.turma)p.set('turma',srState.turma);
@@ -16,7 +18,7 @@ function srQuery(){
 const SR_PATH={atencao:'attention',questoes:'questions',assuntos:'topics',redacao:'redaction',perfis:'profiles',disciplina:'disciplines',maiserrados:'most-missed'};
 async function srLoad(force=false){
  const key=srState.tab+'?'+srQuery();
- if(!srState.sims){try{srState.sims=(await api('/api/school-reports/simulations')).simulations;}catch(_){srState.sims=[];}}
+ if(!srState.sims){try{const r=await api('/api/school-reports/simulations'+(srState.year?'?year='+srState.year:''));srState.sims=r.simulations;srState.years=r.years||[];}catch(_){srState.sims=[];}}
  if(!force&&(srState.data[key]||srState.loading[key]))return;
  srState.loading[key]=true;
  try{srState.data[key]=await api('/api/school-reports/'+SR_PATH[srState.tab]+(srQuery()?'?'+srQuery():''));}
@@ -56,38 +58,39 @@ function srQuestions(d){
 }
 function srTopics(d){
  const turmas=srState.turma?[srState.turma]:d.turmas;
- srCsvRows=[['Área','Disciplina','Assunto','Respostas','Acerto geral (%)',...turmas.map(t=>t+' (%)')],...d.rows.map(r=>[r.area,r.discipline,r.subject,r.answers,r.accuracy??'',...turmas.map(t=>r.turmas[t]??'')])];
- return `<div class="actions sr-filters"><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,'Todos dos últimos 12 meses')}</select></label><label>Área<select data-sr="area"><option value="">Todas</option>${['LC','CH','CN','MT'].map(a=>`<option ${a===srState.area?'selected':''}>${a}</option>`).join('')}</select></label>${srTurmaSelect(d.turmas)}${srCsvButton()}</div>
+ const cmp=d.compare;
+ srCsvRows=[['Área','Disciplina','Assunto','Respostas','Acerto geral (%)',...(cmp?['Acerto em '+cmp+' (%)']:[]),...turmas.map(t=>t+' (%)')],...d.rows.map(r=>[r.area,r.discipline,r.subject,r.answers,r.accuracy??'',...(cmp?[r.previous??'']:[]),...turmas.map(t=>r.turmas[t]??'')])];
+ return `<div class="actions sr-filters"><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,(srState.year?'Todos de '+srState.year:'Todos dos últimos 12 meses'))}</select></label><label>Área<select data-sr="area"><option value="">Todas</option>${['LC','CH','CN','MT'].map(a=>`<option ${a===srState.area?'selected':''}>${a}</option>`).join('')}</select></label>${srTurmaSelect(d.turmas)}${srCsvButton()}</div>
  <p class="micro">Assuntos do menor para o maior acerto. Cores: vermelho abaixo de 40%, laranja de 40% a 59%, verde-claro de 60% a 74%, verde a partir de 75%.</p>
- <div class="table-wrap"><table class="sr-table"><thead><tr><th>Disciplina · assunto</th><th>Respostas</th><th>Geral</th>${turmas.map(t=>`<th>${esc(t)}</th>`).join('')}</tr></thead><tbody>${d.rows.slice(0,400).map(r=>`<tr><td>${esc(r.discipline)}<br><small>${esc(r.subject)}</small></td><td>${r.answers}</td>${srHeat(r.accuracy)}${turmas.map(t=>srHeat(r.turmas[t])).join('')}</tr>`).join('')}</tbody></table></div>`;
+ <div class="table-wrap"><table class="sr-table"><thead><tr><th>Disciplina · assunto</th><th>Respostas</th><th>Geral</th>${cmp?`<th>Em ${cmp}</th>`:''}${turmas.map(t=>`<th>${esc(t)}</th>`).join('')}</tr></thead><tbody>${d.rows.slice(0,400).map(r=>`<tr><td>${esc(r.discipline)}<br><small>${esc(r.subject)}</small></td><td>${r.answers}</td>${srHeat(r.accuracy)}${cmp?srHeat(r.previous):''}${turmas.map(t=>srHeat(r.turmas[t])).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function srDiscipline(d){
  const list=d.disciplines||[];
- if(!list.length)return `<div class="actions sr-filters"><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,'Todos dos últimos 12 meses')}</select></label>${srTurmaSelect(d.turmas||[])}</div><div class="notice">Não há respostas de simulado com esse filtro.</div>`;
+ if(!list.length)return `<div class="actions sr-filters"><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,(srState.year?'Todos de '+srState.year:'Todos dos últimos 12 meses'))}</select></label>${srTurmaSelect(d.turmas||[])}</div><div class="notice">Não há respostas de simulado com esse filtro.</div>`;
  let cur=list.find(x=>x.discipline===srState.disc);
  if(!cur){cur=[...list].sort((a,b)=>b.high-a.high||(b.error||0)-(a.error||0))[0];srState.disc=cur.discipline;}
  const skills=srState.dview==='skills',rows=skills?cur.skills:cur.subjects;
  const name=skills?'Habilidade':'Assunto',rel=skills?'Assuntos cobrados':'Habilidades';
- const hasEnem=!skills&&rows.some(r=>r.enem);
- srCsvRows=[['Disciplina','Prioridade',name,'Erro (%)','Questões','Respostas','Alunos com dificuldade','Alunos',rel,...(hasEnem?['Itens no ENEM','% da disciplina no ENEM','Dificuldade no ENEM']:[])],...rows.map(r=>[cur.discipline,SR_PRI[r.priority],r.label,r.error??'',r.questions,r.answers,r.struggling,r.students,r.related.join(' | '),...(hasEnem?[r.enem?r.enem.items:'',r.enem?r.enem.share:'',r.enem?r.enem.level:'']:[])])];
+ const hasEnem=!skills&&rows.some(r=>r.enem),cmp=d.compare;
+ srCsvRows=[['Disciplina','Prioridade',name,'Erro (%)','Questões','Respostas','Alunos com dificuldade','Alunos',rel,...(cmp?['Erro em '+cmp+' (%)']:[]),...(hasEnem?['Itens no ENEM','% da disciplina no ENEM','Dificuldade no ENEM']:[])],...rows.map(r=>[cur.discipline,SR_PRI[r.priority],r.label,r.error??'',r.questions,r.answers,r.struggling,r.students,r.related.join(' | '),...(cmp?[r.previous??'']:[]),...(hasEnem?[r.enem?r.enem.items:'',r.enem?r.enem.share:'',r.enem?r.enem.level:'']:[])])];
  const counts={alta:0,media:0,baixa:0};rows.forEach(r=>{if(counts[r.priority]!==undefined)counts[r.priority]++;});
- return `<div class="actions sr-filters"><label>Disciplina<select data-sr="disc">${list.map(x=>`<option value="${esc(x.discipline)}" ${x===cur?'selected':''}>${esc(x.discipline)} · ${String(x.error).replace('.',',')}% de erro${x.high?' · '+x.high+' prioridade'+(x.high>1?'s':'')+' alta'+(x.high>1?'s':''):''}</option>`).join('')}</select></label><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,'Todos dos últimos 12 meses')}</select></label>${srTurmaSelect(d.turmas)}<label>Organizar por<select data-sr="dview"><option value="subjects" ${!skills?'selected':''}>Assunto</option><option value="skills" ${skills?'selected':''}>Habilidade</option></select></label>${srCsvButton()}</div>
- <p class="micro"><strong>${esc(cur.discipline)}</strong> · ${String(cur.error).replace('.',',')}% de erro em ${cur.answers} respostas${srState.turma?' da turma '+esc(srState.turma):' de todas as turmas'}. Prioridades: ${counts.alta} alta, ${counts.media} média, ${counts.baixa} baixa.</p>
+ return `<div class="actions sr-filters"><label>Disciplina<select data-sr="disc">${list.map(x=>`<option value="${esc(x.discipline)}" ${x===cur?'selected':''}>${esc(x.discipline)} · ${String(x.error).replace('.',',')}% de erro${x.high?' · '+x.high+' prioridade'+(x.high>1?'s':'')+' alta'+(x.high>1?'s':''):''}</option>`).join('')}</select></label><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,(srState.year?'Todos de '+srState.year:'Todos dos últimos 12 meses'))}</select></label>${srTurmaSelect(d.turmas)}<label>Organizar por<select data-sr="dview"><option value="subjects" ${!skills?'selected':''}>Assunto</option><option value="skills" ${skills?'selected':''}>Habilidade</option></select></label>${srCsvButton()}</div>
+ <p class="micro"><strong>${esc(cur.discipline)}</strong> · ${String(cur.error).replace('.',',')}% de erro em ${cur.answers} respostas${cmp&&cur.previous!=null?' (em '+cmp+': '+String(cur.previous).replace('.',',')+'%)':''}${srState.turma?' da turma '+esc(srState.turma):' de todas as turmas'}. Prioridades: ${counts.alta} alta, ${counts.media} média, ${counts.baixa} baixa.</p>
  <p class="micro">Prioridade de revisão: <strong>alta</strong> quando o erro é de 60% ou mais, ou de 50% ou mais num ${skills?'item':'assunto'} cobrado em 3 ou mais questões; <strong>média</strong> de 40% a 59%; <strong>baixa</strong> abaixo de 40%. Com menos de ${d.minAnswers} respostas aparece "poucos dados". Questão em branco conta como erro. "Alunos com dificuldade" são os que erraram metade ou mais, com pelo menos 2 respostas.</p>
- <div class="table-wrap"><table class="sr-table"><thead><tr><th>Prioridade</th><th>${name}</th><th>Erro</th><th>Questões</th><th>Alunos com dificuldade</th><th>${rel}</th>${hasEnem?'<th>No ENEM</th>':''}</tr></thead><tbody>${rows.map(r=>`<tr><td>${srPri(r.priority)}</td><td><strong>${esc(r.label)}</strong></td>${srErr(r.error)}<td>${r.questions} <small>(${r.answers} resp.)</small></td><td>${r.struggling} de ${r.students}</td><td><small>${r.related.map(esc).join(' · ')}</small></td>${hasEnem?`<td>${r.enem?`${r.enem.items} itens · ${String(r.enem.share).replace('.',',')}% · ${esc(r.enem.level)}`:'<small>—</small>'}</td>`:''}</tr>`).join('')}</tbody></table></div>${hasEnem?'<p class="micro">"No ENEM": quantos itens desse conteúdo estão no banco da aba ENEM (TRI), a fatia da disciplina e a dificuldade média cobrada. Use junto com a prioridade: erro alto em conteúdo que cai muito pede revisão primeiro.</p>':''}`;
+ <div class="table-wrap"><table class="sr-table"><thead><tr><th>Prioridade</th><th>${name}</th><th>Erro</th><th>Questões</th><th>Alunos com dificuldade</th><th>${rel}</th>${cmp?`<th>Erro em ${cmp}</th>`:''}${hasEnem?'<th>No ENEM</th>':''}</tr></thead><tbody>${rows.map(r=>`<tr><td>${srPri(r.priority)}</td><td><strong>${esc(r.label)}</strong></td>${srErr(r.error)}<td>${r.questions} <small>(${r.answers} resp.)</small></td><td>${r.struggling} de ${r.students}</td><td><small>${r.related.map(esc).join(' · ')}</small></td>${cmp?srErr(r.previous):''}${hasEnem?`<td>${r.enem?`${r.enem.items} itens · ${String(r.enem.share).replace('.',',')}% · ${esc(r.enem.level)}`:'<small>—</small>'}</td>`:''}</tr>`).join('')}</tbody></table></div>${hasEnem?'<p class="micro">"No ENEM": quantos itens desse conteúdo estão no banco da aba ENEM (TRI), a fatia da disciplina e a dificuldade média cobrada. Use junto com a prioridade: erro alto em conteúdo que cai muito pede revisão primeiro.</p>':''}`;
 }
 function srMostMissed(d){
- const turmas=srState.turma?[srState.turma]:d.turmas;
- srCsvRows=[['Área','Disciplina','Assunto','Questões','Respostas','Erro geral (%)','Turmas com 50%+ de erro','Turma com mais erro',...turmas.map(t=>t+' (% erro)')],...d.rows.map(r=>[r.area,r.discipline,r.subject,r.questions,r.answers,r.error??'',r.above+' de '+r.withData,r.worst,...turmas.map(t=>r.turmas[t]??'')])];
- return `<div class="actions sr-filters"><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,'Todos dos últimos 12 meses')}</select></label><label>Área<select data-sr="area"><option value="">Todas</option>${['LC','CH','CN','MT'].map(a=>`<option ${a===srState.area?'selected':''}>${a}</option>`).join('')}</select></label>${srTurmaSelect(d.turmas)}${srCsvButton()}</div>
+ const turmas=srState.turma?[srState.turma]:d.turmas,cmp=d.compare;
+ srCsvRows=[['Área','Disciplina','Assunto','Questões','Respostas','Erro geral (%)',...(cmp?['Erro em '+cmp+' (%)']:[]),'Turmas com 50%+ de erro','Turma com mais erro',...turmas.map(t=>t+' (% erro)')],...d.rows.map(r=>[r.area,r.discipline,r.subject,r.questions,r.answers,r.error??'',...(cmp?[r.previous??'']:[]),r.above+' de '+r.withData,r.worst,...turmas.map(t=>r.turmas[t]??'')])];
+ return `<div class="actions sr-filters"><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,(srState.year?'Todos de '+srState.year:'Todos dos últimos 12 meses'))}</select></label><label>Área<select data-sr="area"><option value="">Todas</option>${['LC','CH','CN','MT'].map(a=>`<option ${a===srState.area?'selected':''}>${a}</option>`).join('')}</select></label>${srTurmaSelect(d.turmas)}${srCsvButton()}</div>
  <p class="micro">Assuntos com mais erro em todas as turmas: primeiro os que passam de 50% de erro no maior número de turmas, depois pelo erro geral. Considera assuntos com pelo menos ${d.minAnswers} respostas, e cada turma com pelo menos 3. Cores: vermelho a partir de 60% de erro, laranja de 40% a 59%, verde-claro de 25% a 39%, verde abaixo de 25%.</p>
- <div class="table-wrap"><table class="sr-table"><thead><tr><th>Disciplina · assunto</th><th>Questões</th><th>Erro geral</th><th>Turmas com 50%+</th>${turmas.map(t=>`<th>${esc(t)}</th>`).join('')}</tr></thead><tbody>${d.rows.map(r=>`<tr><td>${esc(r.discipline)}<br><small>${esc(r.subject)}</small></td><td>${r.questions}</td>${srErr(r.error)}<td>${r.everywhere?'<span class="tag sr-pri sr-pri-alta">Todas</span>':r.above+' de '+r.withData}</td>${turmas.map(t=>srErr(r.turmas[t])).join('')}</tr>`).join('')}</tbody></table></div>`;
+ <div class="table-wrap"><table class="sr-table"><thead><tr><th>Disciplina · assunto</th><th>Questões</th><th>Erro geral</th>${cmp?`<th>Em ${cmp}</th>`:''}<th>Turmas com 50%+</th>${turmas.map(t=>`<th>${esc(t)}</th>`).join('')}</tr></thead><tbody>${d.rows.map(r=>`<tr><td>${esc(r.discipline)}<br><small>${esc(r.subject)}</small></td><td>${r.questions}</td>${srErr(r.error)}${cmp?srErr(r.previous):''}<td>${r.everywhere?'<span class="tag sr-pri sr-pri-alta">Todas</span>':r.above+' de '+r.withData}</td>${turmas.map(t=>srErr(r.turmas[t])).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function srRedaction(d){
  srCsvRows=[['Turma','Redações','C1','C2','C3','C4','C5','Média total','Competência mais baixa'],...d.rows.map(r=>[r.turma,r.essays,...r.competencies,r.total,r.weakest])];
- return `<div class="actions sr-filters"><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,'Todos dos últimos 12 meses')}</select></label>${srCsvButton()}</div>
+ return `<div class="actions sr-filters"><label>Simulados<select data-sr="scope">${srSimOptions(srState.scope,(srState.year?'Todos de '+srState.year:'Todos dos últimos 12 meses'))}</select></label>${srCsvButton()}</div>
  <p class="micro">Médias de 0 a 200 por competência. A competência mais baixa de cada turma aparece destacada.</p>
- <div class="table-wrap"><table class="sr-table"><thead><tr><th>Turma</th><th>Redações</th><th>C1</th><th>C2</th><th>C3</th><th>C4</th><th>C5</th><th>Média</th></tr></thead><tbody>${d.rows.map(r=>`<tr${r.turma==='Todas as turmas'?' class="sr-total"':''}><td><strong>${esc(r.turma)}</strong></td><td>${r.essays}</td>${r.competencies.map((v,i)=>`<td class="${'C'+(i+1)===r.weakest?'sr-weak':''}">${String(v).replace('.',',')}</td>`).join('')}<td><strong>${String(r.total).replace('.',',')}</strong></td></tr>`).join('')}</tbody></table></div>`;
+ <div class="table-wrap"><table class="sr-table"><thead><tr><th>Turma</th><th>Redações</th><th>C1</th><th>C2</th><th>C3</th><th>C4</th><th>C5</th><th>Média</th></tr></thead><tbody>${d.rows.map(r=>`<tr${r.turma==='Todas as turmas'||r.previousYear?' class="sr-total"':''}><td><strong>${esc(r.turma)}</strong></td><td>${r.essays}</td>${r.competencies.map((v,i)=>`<td class="${'C'+(i+1)===r.weakest?'sr-weak':''}">${String(v).replace('.',',')}</td>`).join('')}<td><strong>${String(r.total).replace('.',',')}</strong></td></tr>`).join('')}</tbody></table></div>`;
 }
 function srProfiles(d){
  srCsvRows=[['Turma',...d.order.map(k=>d.labels[k]),'Sem simulado completo','Total'],...d.rows.map(r=>[r.turma,...d.order.map(k=>r[k]),r.sem,r.students])];
@@ -98,11 +101,12 @@ function srProfiles(d){
 function srView(){
  srLoad();
  const key=srState.tab+'?'+srQuery(),d=srState.data[key];
+ const period=`<div class="actions sr-filters sr-period"><label>Período<select data-sr="year"><option value="">Últimos 12 meses</option>${(srState.years||[]).map(y=>`<option value="${y}" ${String(y)===srState.year?'selected':''}>Ano letivo ${y}</option>`).join('')}</select></label><label>Comparar com<select data-sr="compare"><option value="">Sem comparação</option>${(srState.years||[]).filter(y=>String(y)!==srState.year).map(y=>`<option value="${y}" ${String(y)===srState.compare?'selected':''}>Ano letivo ${y}</option>`).join('')}</select></label>${srState.compare&&!['assuntos','redacao','disciplina','maiserrados'].includes(srState.tab)?'<p class="micro">A comparação aparece em Assuntos × turmas, Por disciplina, Mais errados e Redação.</p>':''}</div>`;
  const tabs=`<div class="sr-tabs" role="tablist">${SR_TABS.map(([k,l])=>`<button type="button" role="tab" class="${srState.tab===k?'active':''}" data-act="sr-tab" data-tab="${k}">${l}</button>`).join('')}</div>`;
  let body='<section class="card"><p>Carregando relatório…</p></section>';
  if(d&&d.error)body=`<div class="notice warning">${esc(d.error)}</div>`;
  else if(d)body='<section class="card">'+({atencao:srAttention,questoes:srQuestions,assuntos:srTopics,redacao:srRedaction,perfis:srProfiles,disciplina:srDiscipline,maiserrados:srMostMissed}[srState.tab])(d)+'</section>';
- return head('Relatórios da escola','Relatórios para coordenação e professores, com os simulados dos últimos 12 meses.')+tabs+body;
+ return head('Relatórios da escola','Relatórios para coordenação e professores, com os simulados '+(srState.year?'do ano letivo '+srState.year:'dos últimos 12 meses')+(srState.compare?', comparados com '+srState.compare:'')+'.')+period+tabs+body;
 }
 acts['sr-tab']=el=>{srState.tab=el.dataset.tab;srState.turma='';srState.area='';srState.disc='';render();};
 acts['sr-flag']=el=>{srState.flag=el.dataset.flag||'';render();};
@@ -112,6 +116,7 @@ document.addEventListener('change',e=>{
  const k=el.dataset.sr;
  if(k==='worst')srState.worst=el.checked;else srState[k]=el.value;
  if(k==='sim')srState.exam='';
+ if(k==='year'){srState.sims=null;srState.sim='';srState.exam='';srState.scope='';if(srState.compare===srState.year)srState.compare='';}
  render();
 });
 

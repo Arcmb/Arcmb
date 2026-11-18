@@ -114,6 +114,27 @@ class SchoolReportsTests(unittest.TestCase):
         self.assertEqual(fun['above'], 0)
         self.assertEqual(self.student.request('/api/school-reports/most-missed')['status'], 403)
 
+    def test_year_and_compare(self):
+        old_year = int(str(P.today())[:4]) - 2
+        with self.app.db.connection(write=True) as c:
+            add_result(self.app, c, self.b, 'Turma Antiga', f'{old_year}-06-01', 'old1', 10, 700.0, [160] * 5)
+        sims = self.coord.request('/api/school-reports/simulations')['data']
+        self.assertIn(old_year, sims['years'])
+        only_old = self.coord.request(f'/api/school-reports/topics?year={old_year}')['data']
+        self.assertEqual({r['subject']: r['accuracy'] for r in only_old['rows']}, {'Funções': 100.0, 'Estequiometria': 100.0})
+        cur = int(str(P.today())[:4])
+        t = self.coord.request(f'/api/school-reports/topics?year={cur}&compare={old_year}')['data']
+        self.assertEqual(t['compare'], old_year)
+        self.assertEqual({r['subject']: r['previous'] for r in t['rows']}, {'Funções': 100.0, 'Estequiometria': 100.0})
+        dd = self.coord.request(f'/api/school-reports/disciplines?compare={old_year}')['data']
+        q = {x['discipline']: x for x in dd['disciplines']}['Química']
+        self.assertEqual((q['previous'], q['subjects'][0]['previous']), (0.0, 0.0))
+        mm = self.coord.request(f'/api/school-reports/most-missed?compare={old_year}')['data']
+        self.assertIsNone(mm['rows'][0]['previous'])  # só 5 respostas no ano antigo: abaixo do mínimo de 10
+        rd = self.coord.request(f'/api/school-reports/redaction?compare={old_year}')['data']
+        self.assertEqual(rd['rows'][-1]['turma'], f'Todas as turmas · {old_year}')
+        self.assertEqual(self.coord.request(f'/api/school-reports/attention?year={old_year}')['status'], 200)
+
     def test_redaction(self):
         d = self.coord.request('/api/school-reports/redaction')['data']
         by = {r['turma']: r for r in d['rows']}

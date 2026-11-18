@@ -46,16 +46,18 @@ def _norm(value):
 class Data:
     """Carrega uma vez, por requisição, o que todos os relatórios usam."""
 
-    def __init__(self, app, c, user, days=365):
+    def __init__(self, app, c, user, days=365, year=None):
         self.app, self.c, self.user = app, c, user
         roles = ('aluno', 'user') if user.get('role') == 'coordenador' else ('aluno', 'user', 'especial')
         marks = ','.join('?' for _ in roles)
         self.users = {_r(r, 'id'): dict(r) for r in app.db.execute(
             c, f'SELECT id,username,name,role,active,must_change FROM hmay_users WHERE active=1 AND role IN ({marks})', roles).fetchall()}
-        self.cutoff = P.add(P.today(), -int(days))
+        self.year = int(year) if year else None
+        self.cutoff = f'{self.year}-01-01' if self.year else P.add(P.today(), -int(days))
+        until = f'{self.year}-12-31' if self.year else '9999-12-31'
         self.rows = []
-        for r in app.db.execute(c, 'SELECT user_id,activity_key,activity,applied_on,metrics,metadata FROM hmay_performance WHERE applied_on>=? ORDER BY applied_on',
-                                (self.cutoff,)).fetchall():
+        for r in app.db.execute(c, 'SELECT user_id,activity_key,activity,applied_on,metrics,metadata FROM hmay_performance WHERE applied_on>=? AND applied_on<=? ORDER BY applied_on',
+                                (self.cutoff, until)).fetchall():
             if _r(r, 'user_id') in self.users:
                 md = _json(_r(r, 'metadata'), {})
                 self.rows.append({'user': _r(r, 'user_id'), 'key': str(_r(r, 'activity_key') or ''), 'activity': str(_r(r, 'activity') or ''),
@@ -421,7 +423,7 @@ def by_discipline(d, tokens=None, turma=''):
 
 # ---------------------------------------------------------------- 7. mais errados em todas as turmas
 
-def most_missed(d, tokens=None, area=''):
+def most_missed(d, tokens=None, area='', limit=60):
     cells = defaultdict(lambda: defaultdict(lambda: [0, 0]))
     meta, qs = {}, defaultdict(set)
     turmas = set()
@@ -449,7 +451,18 @@ def most_missed(d, tokens=None, area=''):
                      'turmas': by_t, 'above': len(above), 'withData': len(by_t), 'everywhere': bool(by_t) and len(above) == len(by_t),
                      'worst': worst})
     rows.sort(key=lambda x: (-x['above'] / max(1, x['withData']), -(x['error'] or 0)))
-    return {'rows': rows[:60], 'turmas': sorted(turmas), 'minAnswers': MIN_ANSWERS}
+    return {'rows': rows[:limit], 'turmas': sorted(turmas), 'minAnswers': MIN_ANSWERS}
+
+
+# ---------------------------------------------------------------- anos letivos
+
+def years(app, c):
+    out = set()
+    for r in app.db.execute(c, 'SELECT DISTINCT applied_on FROM hmay_performance').fetchall():
+        v = str(_r(r, 'applied_on') or '')[:4]
+        if v.isdigit():
+            out.add(int(v))
+    return sorted(out, reverse=True)
 
 
 # ---------------------------------------------------------------- API
@@ -460,24 +473,61 @@ def handle(app, c, user, path, method, data, query, start, HTTPError):
     if method != 'GET':
         raise HTTPError(405, 'Use GET.')
     q = lambda k: (query.get(k, [''])[0] or '').strip()
-    d = Data(app, c, user)
+    year = int(q('year')) if q('year').isdigit() and 2000 <= int(q('year')) <= 2100 else None
+    compare = int(q('compare')) if q('compare').isdigit() and 2000 <= int(q('compare')) <= 2100 and int(q('compare')) != year else None
+    d = Data(app, c, user, year=year)
+    prev = (lambda: Data(app, c, user, year=compare)) if compare else None
     cfg = MOTOR.load_config(app, c)
     tokens = [x for x in q('sims').split('||') if x]
     if path == '/api/school-reports/simulations':
-        return app.reply(start, 200, {'simulations': d.simulations()})
+        return app.reply(start, 200, {'simulations': d.simulations(), 'years': years(app, c)})
     if path == '/api/school-reports/attention':
         return app.reply(start, 200, attention(d, cfg))
     if path == '/api/school-reports/questions':
         token = q('sim') or (d.simulations()[0]['token'] if d.simulations() else '')
         return app.reply(start, 200, questions(d, token, q('exam') or None))
     if path == '/api/school-reports/topics':
-        return app.reply(start, 200, topics(d, tokens, q('area')))
+        out = topics(d, tokens, q('area'))
+        if prev:
+            old = {(_norm(r['discipline']), _norm(r['subject'])): r['accuracy'] for r in topics(prev(), [], q('area'))['rows']}
+            for r in out['rows']:
+                r['previous'] = old.get((_norm(r['discipline']), _norm(r['subject'])))
+            out['compare'] = compare
+        return app.reply(start, 200, out)
     if path == '/api/school-reports/redaction':
-        return app.reply(start, 200, redaction(d, tokens))
+        out = redaction(d, tokens)
+        if prev:
+            old = next((r for r in redaction(prev(), [])['rows'] if r['turma'] == 'Todas as turmas'), None)
+            if old:
+                out['rows'].append({**old, 'turma': f'Todas as turmas · {compare}', 'previousYear': True})
+            out['compare'] = compare
+        return app.reply(start, 200, out)
     if path == '/api/school-reports/disciplines':
-        return app.reply(start, 200, by_discipline(d, tokens, q('turma')))
+        out = by_discipline(d, tokens, q('turma'))
+        if prev:
+            old = {}
+            for D in by_discipline(prev(), [], '')['disciplines']:
+                old[_norm(D['discipline'])] = D['error']
+                for x in D['subjects']:
+                    old[(_norm(D['discipline']), 's', _norm(x['label']))] = x['error']
+                for x in D['skills']:
+                    old[(_norm(D['discipline']), 'h', _norm(x['label']))] = x['error']
+            for D in out['disciplines']:
+                D['previous'] = old.get(_norm(D['discipline']))
+                for x in D['subjects']:
+                    x['previous'] = old.get((_norm(D['discipline']), 's', _norm(x['label'])))
+                for x in D['skills']:
+                    x['previous'] = old.get((_norm(D['discipline']), 'h', _norm(x['label'])))
+            out['compare'] = compare
+        return app.reply(start, 200, out)
     if path == '/api/school-reports/most-missed':
-        return app.reply(start, 200, most_missed(d, tokens, q('area')))
+        out = most_missed(d, tokens, q('area'))
+        if prev:
+            old = {(_norm(r['discipline']), _norm(r['subject'])): r['error'] for r in most_missed(prev(), [], q('area'), limit=100000)['rows']}
+            for r in out['rows']:
+                r['previous'] = old.get((_norm(r['discipline']), _norm(r['subject'])))
+            out['compare'] = compare
+        return app.reply(start, 200, out)
     if path == '/api/school-reports/profiles':
         return app.reply(start, 200, profiles(d, cfg))
     raise HTTPError(404, 'Relatório não encontrado.')

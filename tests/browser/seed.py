@@ -56,3 +56,11 @@ import enem_items as _E, templates_v23 as _T
 _rows=[[2023,'MT','Matemática','Funções','Funções',f'H{20+i%3}',2.0+0.2*i,0.8+0.25*i,0.15] for i in range(6)]+[[2022,'CN','Química','Estequiometria','Estequiometria','H24',2.8,2.2,0.12],[2022,'','Astronomia','','Estrelas','',2,1,0.2]]
 _blob,_=_T.export(_E.HEADERS,_rows,first_name='Itens ENEM')
 open(_os.path.join(_os.path.dirname(sys.argv[2]),'itens_enem.xlsx'),'wb').write(_blob)
+# Ano letivo anterior (para o cenário 07 de comparação entre anos).
+_prev=int(str(P.today())[:4])-1
+with app.db.connection(write=True) as c:
+    for i in range(12):
+        uid=app.db.execute(c,'SELECT id FROM hmay_users WHERE username=?',(f'al{i}',)).fetchone()['id']
+        m={f"questao:{it['number']:03d}":{'correct':int(random.random()<0.5),'total':1} for it in ITEMS}
+        md={'_exam_id':'ex1','TURMA':'3º A','COR DA PROVA':'AZUL','_tri_general':600.0,'_tri_lc':600.0,'_tri_ch':600.0,'_tri_cn':600.0,'_tri_mt':600.0,'_tri_redaction':600,**{f'_redaction_c{k+1}':120 for k in range(5)}}
+        app.db.execute(c,'INSERT INTO hmay_performance(id,user_id,activity_key,activity,applied_on,metrics,metadata,version,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',(P.uid(),uid,'simprev','Simulado anterior',f'{_prev}-06-10',json.dumps(m),json.dumps(md),1,P.now().isoformat()))
