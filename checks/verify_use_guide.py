@@ -10,7 +10,7 @@ def main():
     app=(ROOT/'static'/'app.html').read_text(encoding='utf-8')
     responsive=(ROOT/'static'/'responsive_ui_refinement.js').read_text(encoding='utf-8')
     css=(ROOT/'static'/'style.css').read_text(encoding='utf-8')
-    for marker in ('Guia de Uso','Pular tutorial','Não exibir novamente','? Ajuda','Próxima','Anterior'):
+    for marker in ('Guia de Uso','Guia rápido','Não abrir dicas sozinhas','? Ajuda','Entendi','MANAGER','STUDENT'):
         require(marker in js,'Missing tutorial marker: '+marker)
     require('/static/use_guide.js?v=' in app,'Use-guide asset is not loaded.')
     require("wrap.style.display='none'" in responsive,'Native student selector was not hidden.')

@@ -17,7 +17,7 @@ check('Aluno antigo sem passo a passo',await ev(`!document.querySelector('#ob-ov
 await login('novo.aluno','TEST_aluno_1234');await sleep(800);
 check('Passo a passo abre no primeiro acesso',await ev(`!!document.querySelector('#ob-overlay .ob-hero')`));
 check('Saudação com o primeiro nome',(await ev(`document.querySelector('#ob-overlay h1').textContent`)).includes('Novo'));
-await sleep(1500);check('Guia rápido não abre por cima',await ev(`![...document.querySelectorAll('.use-guide-overlay')].some(x=>x.classList.contains('open')&&getComputedStyle(x).display!=='none')`));
+await sleep(1500);check('Guia rápido não abre por cima',await ev(`![...document.querySelectorAll('.qg-overlay')].some(x=>x.classList.contains('open')&&getComputedStyle(x).display!=='none')`));
 check('Visual aplicado (CSS)',await ev(`getComputedStyle(document.querySelector('.ob-panel')).borderRadius`)==='24px');
 await shot('ob-1');
 await click('[data-act="ob-later"]');

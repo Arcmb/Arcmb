@@ -1,0 +1,42 @@
+const list=await (await fetch('http://127.0.0.1:9222/json/list')).json();const page=list.find(x=>x.type==='page');
+const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let id=0;const pend={};const errors=[];
+ws.onmessage=m=>{const d=JSON.parse(m.data);if(d.id&&pend[d.id]){pend[d.id](d);delete pend[d.id];}if(d.method==='Runtime.exceptionThrown')errors.push((d.params.exceptionDetails.exception?.description||d.params.exceptionDetails.text||'').split('\n')[0]);};
+const send=(method,params={})=>new Promise(r=>{const i=++id;pend[i]=r;ws.send(JSON.stringify({id:i,method,params}));});const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const ev=async e=>{const r=await send('Runtime.evaluate',{expression:e,awaitPromise:true,returnByValue:true});return r.result.exceptionDetails?'ERR '+(r.result.exceptionDetails.exception?.description||'').split('\n')[0]:r.result.result.value;};
+await send('Runtime.enable');await send('Network.enable');
+let fails=0;const check=(label,cond,extra='')=>{console.log((cond?'OK  ':'FALHA ')+label+(extra?' → '+extra:''));if(!cond)fails++;};
+async function login(u,p){await send('Network.clearBrowserCookies');await send('Page.navigate',{url:'http://127.0.0.1:8765/login'});await sleep(1500);await ev(`document.querySelector('[name=username]').value='${u}';document.querySelector('[name=password]').value='${p}';document.querySelector('form').submit()`);await sleep(3500);await ev(`document.querySelectorAll('dialog[open],.guide-overlay,.use-guide').forEach(x=>x.remove?.());1`);}
+const nav=()=>ev(`[...document.querySelectorAll('#nav button')].map(b=>b.textContent.replace(/^\\d+/,'').trim()).join(' | ')`);
+const search=async q=>{await ev(`{const i=document.querySelector('#account-search');i.focus();i.value=${JSON.stringify(q)};i.dispatchEvent(new Event('input',{bubbles:true}));}1`);await sleep(300);await ev(`document.querySelector('.account-search-result').dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));1`);await sleep(2500);};
+const shot=async n=>{const r=await send('Page.captureScreenshot',{format:'png'});(await import('fs')).writeFileSync('/tmp/qi-browser-'+n+'.png',Buffer.from(r.result.data,'base64'));};
+const go=async label=>{await ev(`(()=>{const b=[...document.querySelectorAll('#nav button')].find(b=>b.textContent.includes(${JSON.stringify(label)}));if(b)b.click();return !!b})()`);await sleep(1500);};
+const open=()=>ev(`!!document.querySelector('.qg-overlay.open')`);
+const title=()=>ev(`document.querySelector('#qg-title')?.textContent||''`);
+const steps=()=>ev(`[...document.querySelectorAll('#qg-steps li')].map(l=>l.textContent).join(' | ')`);
+// Gestão: nada abre sozinho; "? Ajuda" mostra o texto da gestão, sem número no título
+await login('laise','TEST_coord_1234');await sleep(1500);
+check('Gestão: dica não abre sozinha',!(await open()));
+await ev(`document.querySelector('.use-guide-context').click();1`);await sleep(600);
+check('Gestão: título sem número',(await title())==='Visão geral',await title());
+check('Gestão: texto da coordenação',/Painel da coordenação/.test(await steps()),await steps());
+check('Guia antigo não aparece',await ev(`![...document.querySelectorAll('.use-guide-overlay')].some(x=>getComputedStyle(x).display!=='none')`));
+check('Título alinhado à esquerda, abaixo do selo',await ev(`(()=>{const k=document.querySelector('.qg-kicker').getBoundingClientRect(),t=document.querySelector('#qg-title').getBoundingClientRect();return t.top>k.bottom-2&&Math.abs(t.left-k.left)<4})()`));
+await shot('guia-gestao');
+await ev(`document.querySelector('#qg-ok').click();1`);await sleep(400);
+check('Entendi fecha',!(await open()));
+await search('Ana');await sleep(2500);await go('Observações pessoais');
+check('Gestão vendo aluno: dica não abre sozinha',!(await open()));
+// Aluno: abre sozinha uma vez por aba, com texto do aluno
+await login('ana.souza','TEST_aluno_1234');await sleep(1500);
+check('Aluno: dica abre na Visão geral',await open());
+check('Aluno: texto do aluno',/resumo da sua semana/i.test(await steps()),await steps());
+await ev(`document.querySelector('#qg-ok').click();1`);await sleep(400);
+await go('Observações pessoais');await sleep(600);
+check('Aluno: dica da aba Observações',(await title())==='Observações pessoais'&&/suas palavras/.test(await steps()),await title()+' · '+await steps());
+await shot('guia-aluno');
+await ev(`document.querySelector('#qg-never').click();document.querySelector('#qg-ok').click();1`);await sleep(400);
+await go('Rotina e horários');await sleep(800);
+check('"Não abrir dicas sozinhas" é respeitado',!(await open()));
+await go('Visão geral');await sleep(500);
+check('Visão geral não repete',!(await open()));
+const jsErrors=[...new Set(errors)];console.log('Falhas:',fails,'Erros JS:',jsErrors);process.exit(fails||jsErrors.length?1:0);
