@@ -241,8 +241,9 @@ def _remove_exam_reviews(app, c, removed):
     for start in range(0, len(users), 40):
         chunk = users[start:start + 40]
         marks = ','.join('?' for _ in chunk)
+        # O padrão vai como parâmetro: no Postgres, um "%" escrito no SQL vira marcador.
         rows = app.db.execute(c, f"SELECT user_id,profile FROM hmay_state WHERE user_id IN ({marks}) "
-                                 f"AND profile LIKE '%exam_error%'" + lock, tuple(chunk)).fetchall()
+                                 f"AND profile LIKE ?" + lock, tuple(chunk) + ('%exam_error%',)).fetchall()
         for row in rows:
             uid = row['user_id']
             pairs = {(F.norm(sim), date) for sim, date in removed[uid]}

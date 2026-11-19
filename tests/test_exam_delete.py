@@ -2,6 +2,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import json
+import re
 import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1])); sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'checks'))
@@ -35,6 +36,18 @@ class ExamFixture(unittest.TestCase):
         self.addCleanup(folder.cleanup)
         self.app = App({'LOCAL_TEST': '1', 'LOCAL_DB': str(Path(folder.name) / 'fixture.sqlite3')})
         self.app.db.initialize(self.app.owner, PASSWORD)
+        # Os testes rodam em SQLite, mas a produção usa Postgres, onde o app troca "?" por "%s".
+        # Lá, um "%" solto no SQL (ex.: LIKE '%x%') quebra a consulta: falha aqui também.
+        execute = self.app.db.execute
+
+        def postgres_placeholders(conn, sql, args=()):
+            if args:
+                converted = sql.replace('?', '%s')
+                stray = re.findall(r'%(?![s%])', converted)
+                self.assertFalse(stray, 'SQL com "%" literal quebraria no Postgres: ' + sql)
+            return execute(conn, sql, args)
+
+        self.app.db.execute = postgres_placeholders
         with self.app.db.connection(write=True) as c:
             self.master = dict(c.execute("SELECT id,role FROM hmay_users WHERE role='master'").fetchone())
             self.app.db.create_user(c, 'coord.teste', 'Coordenação', PASSWORD, 'coordenador', False)

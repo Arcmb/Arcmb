@@ -48,6 +48,7 @@ with app.db.connection(write=True) as c:
 with app.db.connection(write=True) as c:
     items=[{'number':1,'area':'LC','discipline':'ESPANHOL','answer':'A','language':'Espanhol'},{'number':2,'area':'LC','discipline':'L. corporal','answer':'B','language':''},{'number':3,'area':'CN','discipline':'Astronomia','answer':'C','language':''}]
     app.db.execute(c,'INSERT INTO hmay_exams(id,identity_key,owner_id,title,applied_on,color,area,items,version,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',('ex2','k2',owner,'5º Simulado',P.today(),'AZUL','GERAL',json.dumps(items),1,P.now().isoformat()))
+    app.db.execute(c,'INSERT INTO hmay_exams(id,identity_key,owner_id,title,applied_on,color,area,items,version,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',('ex3','k3',owner,'5º Simulado',P.today(),'AMARELA','GERAL',json.dumps(items),1,P.now().isoformat()))
 
 print('seeded')
 # Planilha de itens do ENEM para o cenário 07 (gravada ao lado do banco temporário).

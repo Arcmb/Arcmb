@@ -61,6 +61,12 @@ check('Caderno não existe mais',(await api('/api/model-data/exam-delete-preview
 // 3) Gabarito sem respostas sai sozinho
 await openDelete('5º Simulado');st=await state();
 check('Sem respostas: caixa de respostas desabilitada',st.answers[1],JSON.stringify(st));
+const radios=await ev(`[...document.querySelectorAll('#modal-form input[name=scope]')].map(r=>{const b=r.getBoundingClientRect(),l=r.closest('label').getBoundingClientRect();return [Math.round(b.width),Math.round(b.left-l.left)]})`);
+check('Alcance com duas opções de tamanho normal, alinhadas à esquerda',radios.length===2&&radios.every(([w,x])=>w<=24&&x<=4),JSON.stringify(radios));
+check('Alcance começa em "Só o caderno"',await ev(`document.querySelector('#modal-form input[name=scope]:checked').value`)==='caderno');
+await ev(`document.querySelector('#modal-form input[name=scope][value=simulado]').click();1`);await sleep(300);
+check('Simulado inteiro: 2 cadernos',/2 cadernos \(AMARELA, AZUL\)/.test(await ev(`document.querySelector('[data-exam-delete-text=map]').innerText`)),await ev(`document.querySelector('[data-exam-delete-text=map]').innerText`));
+await shot('excluir-alcance');
 await tick('map');await typeIn('confirmation','EXCLUIR');
 await ev(`document.querySelector('#modal-form button[type=submit]').click();1`);await sleep(2500);
 check('5º Simulado saiu da lista',!/5º Simulado/.test(await listText()));
