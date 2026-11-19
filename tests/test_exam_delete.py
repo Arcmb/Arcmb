@@ -27,7 +27,9 @@ def metrics(wrong):
             for n in range(1, 5)}
 
 
-class ExamDeleteTests(unittest.TestCase):
+class ExamFixture(unittest.TestCase):
+    """Dois simulados (um com duas cores), três alunos e revisões geradas pelos erros."""
+
     def setUp(self):
         folder = TemporaryDirectory()
         self.addCleanup(folder.cleanup)
@@ -92,7 +94,8 @@ class ExamDeleteTests(unittest.TestCase):
                 out += [(e['simulation'], e['date']) for e in content['examErrors']]
         return out
 
-    # ------------------------------------------------------------ testes
+
+class ExamDeleteTests(ExamFixture):
 
     def test_preview_counts_each_scope(self):
         data = self.preview()

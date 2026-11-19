@@ -246,7 +246,8 @@ def questions(d, token, exam_id=None):
     for n, s in sorted(stats.items()):
         it = items.get(n, {})
         wrong = sum(s['letters'].values())
-        top = max(s['letters'].items(), key=lambda x: x[1]) if s['letters'] else None
+        # Mais marcada; no empate, a primeira em ordem alfabética (não depende da ordem dos resultados).
+        top = min(s['letters'].items(), key=lambda x: (-x[1], x[0])) if s['letters'] else None
         out.append({'number': n, 'area': it.get('area', ''), 'discipline': it.get('discipline', ''), 'topic': it.get('topic', ''),
                     'subject': it.get('subject', ''), 'skill': it.get('skill', ''), 'answer': it.get('answer', ''),
                     'accuracy': _pct(s['ok'], s['tot']), 'answered': s['tot'],

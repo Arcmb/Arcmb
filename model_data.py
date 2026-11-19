@@ -3012,7 +3012,9 @@ _v36_dashboard_cache={}
 
 def _v36_classes_ensure(app,c):
     global _v36_classes_ready
-    if _v36_classes_ready:
+    # Lembra por banco (e não por processo): nos testes, cada caso usa um banco novo.
+    database=str(getattr(app.db,'local_path',None) or getattr(app.db,'url','') or id(app.db))
+    if _v36_classes_ready==database:
         return
     app.db.execute(c, """CREATE TABLE IF NOT EXISTS hmay_classes(
         id text PRIMARY KEY,
@@ -3023,7 +3025,7 @@ def _v36_classes_ensure(app,c):
         created_at text NOT NULL,
         updated_at text NOT NULL
     )""")
-    _v36_classes_ready=True
+    _v36_classes_ready=database
 
 def _v36_class_rows(app,c,active_only=False):
     _v36_classes_ensure(app,c)
@@ -5043,3 +5045,95 @@ def handle(app,c,user,path,method,data,query,start,HTTPError):
             return app.reply(start,200,_exam_metadata.delete_preview(app,c,user,data,HTTPError))
         return app.reply(start,200,_exam_metadata.delete(app,c,user,data,HTTPError))
     return _v315_delete_handle_base(app,c,user,path,method,data,query,start,HTTPError)
+
+# === EXAM DETAIL V3.16.0 ===
+# Ao clicar num caderno do Mapa de questões: o gabarito, as notas e as respostas vinculadas.
+
+def _v316_number(value):
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+def _v316_exam_detail(app,c,user,query,HTTPError):
+    if not _exam_metadata.can_edit(user):
+        raise HTTPError(403,'A consulta dos cadernos é exclusiva do Master e da coordenação.')
+    exam_id=_v3711_query_scalar(query,'examId',160)
+    row=app.db.execute(c,'SELECT id,title,applied_on,color,area,items,version,updated_at FROM hmay_exams WHERE id=?',(exam_id,)).fetchone()
+    if not row:
+        raise HTTPError(404,'Este caderno não foi encontrado. Atualize a lista.')
+    try:
+        raw_items=json.loads(row['items'] or '[]')
+    except Exception:
+        raw_items=[]
+    items=[]
+    qmap={}
+    for it in raw_items if isinstance(raw_items,list) else []:
+        if not isinstance(it,dict):
+            continue
+        number=_v316_number(it.get('number'))
+        area=str(it.get('area') or '')
+        if number and area and number not in qmap:
+            qmap[number]=area
+        items.append({key:it.get(key) for key in ('number','area','discipline','subject','topic','skill','language','answer')})
+    items.sort(key=lambda x:(_v316_number(x.get('number')) or 0,str(x.get('language') or '')))
+
+    class_lookup=_v36_class_lookup(app,c)
+    link=_exam_metadata.exam_link(app,'p.metadata')
+    rows=app.db.execute(
+        c,f'SELECT p.id,p.user_id,p.activity,p.applied_on,p.metrics,p.metadata,p.updated_at,u.name,u.username,u.active '
+          f'FROM hmay_performance p LEFT JOIN hmay_users u ON u.id=p.user_id WHERE {link}=?',(exam_id,)).fetchall()
+    students=[]
+    with_scores=0
+    imported=set()
+    for r in rows:
+        metadata=_rx_json(r['metadata']);metrics=_rx_json(r['metrics'])
+        areas={key:{'correct':0,'valid':0} for key in ('LC','CH','CN','MT')}
+        correct=valid=0;wrong=[];blank=[]
+        for key,value in metrics.items():
+            if not isinstance(value,dict):
+                continue
+            number=_v36_metric_number(key)
+            c_=value.get('correct');t_=value.get('total')
+            if c_ is None or t_ is None or not t_:
+                if number: blank.append(number)
+                continue
+            try:
+                c_=max(0,int(c_));t_=max(0,int(t_))
+            except Exception:
+                continue
+            correct+=c_;valid+=t_
+            if number and c_<t_: wrong.append(number)
+            area=qmap.get(number) or ('LC' if number and number<=45 else 'CH' if number and number<=90 else 'CN' if number and number<=135 else 'MT' if number and number<=180 else None)
+            if area in areas:
+                areas[area]['correct']+=c_;areas[area]['valid']+=t_
+        scores=_tri_scores_from_metadata(metadata)
+        has_scores=any(k=='_ranking' or k.startswith('_tri_') or k.startswith('_redaction_') for k in metadata)
+        with_scores+=1 if has_scores else 0
+        if metadata.get('_tri_imported_at'): imported.add(str(metadata.get('_tri_imported_at'))[:16])
+        raw_class=F.text(metadata.get('TURMA'),160) or 'Sem turma'
+        students.append({
+            'resultId':r['id'],'userId':r['user_id'],'activity':str(r['activity'] or ''),'date':str(r['applied_on'] or ''),'name':r['name'] or '(conta excluída)','username':r['username'] or '',
+            'active':bool(r['active']),'turma':class_lookup.get(F.norm(raw_class),raw_class),
+            'language':str(metadata.get('L.E') or ''),'updatedAt':str(r['updated_at'] or ''),
+            'correct':correct,'valid':valid,'areas':areas,'wrong':sorted(wrong),'blank':sorted(blank),
+            'hasScores':has_scores,'ranking':metadata.get('_ranking'),
+            'scores':{key:scores.get(key) for key in ('lc','ch','cn','mt','tri','redaction')},
+            'competencies':[metadata.get('_redaction_c%d'%n) for n in range(1,6)],
+        })
+    students.sort(key=lambda s:(F.norm(s['name']),s['username']))
+    return {
+        'exam':{'id':row['id'],'title':row['title'],'date':row['applied_on'],'color':row['color'],'area':row['area'] or '',
+                'version':row['version'],'updatedAt':str(row['updated_at'] or ''),'questions':len(qmap) or len({x.get('number') for x in items})},
+        'items':items,'students':students,
+        'summary':{'results':len(students),'withScores':with_scores,'scoresImportedAt':sorted(imported)},
+    }
+
+_v316_detail_handle_base=handle
+
+def handle(app,c,user,path,method,data,query,start,HTTPError):
+    if path=='/api/model-data/exam-detail':
+        if method!='GET':
+            raise HTTPError(405,'Use GET para consultar o caderno.')
+        return app.reply(start,200,_v316_exam_detail(app,c,user,query,HTTPError))
+    return _v316_detail_handle_base(app,c,user,path,method,data,query,start,HTTPError)

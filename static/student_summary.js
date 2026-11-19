@@ -227,10 +227,12 @@ async function loadExamMapList(seq){
    const edit=button(exam.canEdit?'Editar dados':'Editar data','exam-metadata-edit','secondary',attrs);
    const complement=exam.canEdit?button('Complementar mapa','exam-edit','secondary',attrs):'';
    const remove=exam.canEdit?button('Excluir…','exam-delete','danger-button',attrs+' aria-label="Excluir notas, respostas ou gabarito de '+esc(exam.title)+' · '+esc(exam.color)+'"'):'';
-   return '<div class="item"><div><strong>'+esc(exam.title)+'</strong><p>'+
+   const view=exam.canEdit?button('Ver dados','exam-detail','secondary',attrs):'';
+   const title=exam.canEdit?button(esc(exam.title),'exam-detail','link-button exam-detail-title',attrs+' title="Ver gabarito, notas e respostas"'):'<strong>'+esc(exam.title)+'</strong>';
+   return '<div class="item"><div>'+title+'<p>'+
      br(exam.applied_on)+' · '+esc(exam.color)+' · '+esc(exam.area||'Sem área padrão')+
      ' · '+Number(exam.linkedResults)+' resultado(s) vinculado(s) · versão '+Number(exam.version)+
-     '</p></div><div class="actions">'+edit+complement+remove+'</div></div>';
+     '</p></div><div class="actions">'+view+edit+complement+remove+'</div></div>';
   }));
  }catch(error){
   const box=$('#exam-list');
@@ -276,6 +278,62 @@ acts['exam-metadata-edit']=el=>{
   for(const key of ['title','color','area'])fields.namedItem(key).disabled=true;
  }
 };
+
+// === EXAM DETAIL V3.16.0 ===
+// Ao clicar num caderno: o gabarito, as notas e as respostas vinculadas a ele.
+let examDetail=null,examDetailTab='items',examDetailQuery='';
+function examDetailNum(v,d=1){return v===null||v===undefined||v===''||isNaN(Number(v))?'—':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:d});}
+function examDetailPct(c,v){return v?Math.round(100*c/v)+'%':'—';}
+function examDetailList(list){if(!list.length)return '—';const shown=list.slice(0,40).join(', ');return list.length>40?shown+' … (+'+(list.length-40)+')':shown;}
+function examDetailRows(){
+ const q=examDetailQuery.trim().toLocaleLowerCase('pt-BR');
+ return examDetail.students.filter(s=>!q||(s.name+' '+s.username+' '+s.turma).toLocaleLowerCase('pt-BR').includes(q));
+}
+function examDetailBody(){
+ const d=examDetail;
+ if(examDetailTab==='items'){
+  if(!d.items.length)return '<div class="notice warning">Este caderno não tem gabarito cadastrado.</div>';
+  return '<div class="table-wrap exam-detail-table"><table><thead><tr><th>Nº</th><th>Área</th><th>Disciplina</th><th>Assunto</th><th>Habilidade</th><th>Idioma</th><th>Gabarito</th></tr></thead><tbody>'+
+   d.items.map(it=>'<tr><td>'+esc(it.number??'')+'</td><td>'+esc(it.area||'')+'</td><td>'+esc(it.discipline||'')+'</td><td>'+esc(it.subject||it.topic||'')+'</td><td>'+esc(it.skill||'')+'</td><td>'+esc(it.language||'—')+'</td><td><strong>'+esc(it.answer||'—')+'</strong></td></tr>').join('')+'</tbody></table></div>';
+ }
+ const rows=examDetailRows();
+ if(!d.students.length)return '<div class="notice warning">Nenhuma resposta de aluno vinculada a este caderno.</div>';
+ const search='<label class="search-input">Buscar aluno ou turma<input id="exam-detail-search" type="search" value="'+esc(examDetailQuery)+'" autocomplete="off"></label><p class="micro">'+rows.length+' de '+d.students.length+' aluno(s).</p>';
+ const other=s=>s.activity!==d.exam.title||s.date!==d.exam.date?'<small class="exam-detail-other">registrado como '+esc(s.activity)+' · '+br(s.date)+'</small>':'';
+ const who=s=>'<strong>'+esc(s.name)+'</strong><small>'+esc(s.username)+(s.active?'':' · conta inativa')+'</small>'+other(s);
+ if(examDetailTab==='scores'){
+  if(!d.summary.withScores)return '<div class="notice warning">Nenhuma nota (TRI, redação ou ranking) foi importada para este caderno. As respostas estão na aba "Respostas".</div>';
+  return search+'<div class="table-wrap exam-detail-table"><table><thead><tr><th>Aluno</th><th>Turma</th><th>Ranking</th><th>LC</th><th>CH</th><th>CN</th><th>MT</th><th>TRI geral</th><th>Redação</th><th>C1</th><th>C2</th><th>C3</th><th>C4</th><th>C5</th></tr></thead><tbody>'+
+   rows.map(s=>{const x=s.scores;return '<tr><td>'+who(s)+'</td><td>'+esc(s.turma)+'</td><td>'+examDetailNum(s.ranking,0)+'</td><td>'+examDetailNum(x.lc)+'</td><td>'+examDetailNum(x.ch)+'</td><td>'+examDetailNum(x.cn)+'</td><td>'+examDetailNum(x.mt)+'</td><td>'+examDetailNum(x.tri)+'</td><td>'+examDetailNum(x.redaction,0)+'</td>'+s.competencies.map(v=>'<td>'+examDetailNum(v,0)+'</td>').join('')+'</tr>';}).join('')+'</tbody></table></div>';
+ }
+ return search+'<div class="table-wrap exam-detail-table"><table><thead><tr><th>Aluno</th><th>Turma</th><th>L.E.</th><th>Acertos</th><th>LC</th><th>CH</th><th>CN</th><th>MT</th><th>Questões erradas</th><th>Em branco ou anuladas</th></tr></thead><tbody>'+
+  rows.map(s=>'<tr><td>'+who(s)+'</td><td>'+esc(s.turma)+'</td><td>'+esc(s.language||'—')+'</td><td><strong>'+s.correct+'/'+s.valid+'</strong><small>'+examDetailPct(s.correct,s.valid)+'</small></td>'+
+   ['LC','CH','CN','MT'].map(a=>'<td>'+s.areas[a].correct+'/'+s.areas[a].valid+'</td>').join('')+
+   '<td class="exam-detail-numbers">'+examDetailList(s.wrong)+'</td><td class="exam-detail-numbers">'+examDetailList(s.blank)+'</td></tr>').join('')+'</tbody></table></div>';
+}
+function examDetailRender(){
+ const box=$('#exam-detail-body');
+ if(!box||!examDetail)return;
+ document.querySelectorAll('[data-act="exam-detail-tab"]').forEach(b=>{const on=b.dataset.tab===examDetailTab;b.classList.toggle('primary',on);b.classList.toggle('secondary',!on);b.setAttribute('aria-selected',on?'true':'false');});
+ box.innerHTML=examDetailBody();
+}
+acts['exam-detail']=async el=>{
+ const data=await api('/api/model-data/exam-detail?examId='+encodeURIComponent(el.dataset.id));
+ examDetail=data;examDetailTab='items';examDetailQuery='';
+ const e=data.exam,sm=data.summary;
+ const tab=(id,label)=>'<button type="button" class="secondary" role="tab" data-act="exam-detail-tab" data-tab="'+id+'">'+label+'</button>';
+ const stamp=sm.scoresImportedAt.length?' · notas importadas em '+sm.scoresImportedAt.map(x=>br(x.slice(0,10))+(x.length>10?' '+esc(x.slice(11,16)):'')).join(', '):'';
+ modal(e.title,'<p><strong>'+br(e.date)+' · '+esc(e.color)+'</strong> · '+esc(e.area||'Sem área padrão')+' · versão '+Number(e.version)+'</p>'+
+  '<div class="score-summary"><div><strong>'+Number(e.questions)+'</strong>questões no gabarito</div><div><strong>'+sm.results+'</strong>aluno(s) com respostas</div><div><strong>'+sm.withScores+'</strong>aluno(s) com notas</div></div>'+
+  (stamp?'<p class="micro">'+stamp.slice(3)+'</p>':'')+
+  '<div class="actions exam-detail-tabs" role="tablist">'+tab('items','Gabarito ('+data.items.length+')')+tab('scores','Notas ('+sm.withScores+')')+tab('answers','Respostas ('+sm.results+')')+'</div>'+
+  '<div id="exam-detail-body"></div>',null);
+ $('#dialog').classList.add('dialog-wide');
+ examDetailRender();
+};
+acts['exam-detail-tab']=el=>{examDetailTab=el.dataset.tab;examDetailRender();};
+document.addEventListener('input',e=>{if(e.target.id==='exam-detail-search'){examDetailQuery=e.target.value;const pos=e.target.selectionStart;examDetailRender();const input=$('#exam-detail-search');if(input){input.focus();input.setSelectionRange(pos,pos);}}});
+$('#dialog').addEventListener('close',()=>{$('#dialog').classList.remove('dialog-wide');examDetail=null;});
 
 // === EXAM DELETE V3.15.0 ===
 // Exclui o que foi enviado errado: notas (TRI, redação, ranking), respostas dos alunos e gabarito.

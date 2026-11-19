@@ -28,7 +28,7 @@ ORDER = [
     'verify_hotfix_v373', 'verify_hotfix_v374', 'verify_hotfix_v375', 'verify_hotfix_v376', 'verify_hotfix_v377',
     'verify_hotfix_v378', 'verify_hotfix_v379', 'verify_hotfix_v3710_status', 'verify_hotfix_v3711_management_filter',
     'verify_hotfix_v3712_class_analytics', 'verify_hotfix_v3713_sort', 'verify_provisional_expiry', 'verify_motor_v3718',
-    'verify_student_view_v2', 'verify_motor_profiles', 'verify_school_reports', 'verify_disciplines_catalog', 'verify_enem_items', 'verify_onboarding', 'verify_csp_styles', 'verify_exam_delete',
+    'verify_student_view_v2', 'verify_motor_profiles', 'verify_school_reports', 'verify_disciplines_catalog', 'verify_enem_items', 'verify_onboarding', 'verify_csp_styles', 'verify_exam_delete', 'verify_exam_detail',
     'verify_site_version', 'verify_release', 'verify_adaptive', 'verify_selective', 'verify_workbook',
     'verify_coordinator', 'verify_model_data',
 ]
