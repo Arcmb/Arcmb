@@ -48,7 +48,7 @@ with app.db.connection(write=True) as c:
 with app.db.connection(write=True) as c:
     items=[{'number':1,'area':'LC','discipline':'ESPANHOL','answer':'A','language':'Espanhol'},{'number':2,'area':'LC','discipline':'L. corporal','answer':'B','language':''},{'number':3,'area':'CN','discipline':'Astronomia','answer':'C','language':''}]
     app.db.execute(c,'INSERT INTO hmay_exams(id,identity_key,owner_id,title,applied_on,color,area,items,version,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',('ex2','k2',owner,'5º Simulado',P.today(),'AZUL','GERAL',json.dumps(items),1,P.now().isoformat()))
-    app.db.execute(c,'INSERT INTO hmay_exams(id,identity_key,owner_id,title,applied_on,color,area,items,version,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',('ex3','k3',owner,'5º Simulado',P.today(),'AMARELA','GERAL',json.dumps(items),1,P.now().isoformat()))
+    app.db.execute(c,'INSERT INTO hmay_exams(id,identity_key,owner_id,title,applied_on,color,area,items,version,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',('ex3','k3',owner,'5º Simulado',P.today(),'AMARELA','GERAL',json.dumps([{'number':1,'area':'LC','discipline':'Português','answer':'A','language':''}]),1,P.now().isoformat()))  # cor extra só com disciplina oficial: não altera as contagens do cenário 08
 
 print('seeded')
 # Planilha de itens do ENEM para o cenário 07 (gravada ao lado do banco temporário).
@@ -71,3 +71,24 @@ with app.db.connection(write=True) as c:
         prof=json.loads(r['profile']);prof.setdefault('settings',{})['onboardedAt']='2026-01-01'
         app.db.execute(c,'UPDATE hmay_state SET profile=? WHERE user_id=?',(json.dumps(prof),r['user_id']))
     app.db.create_user(c,'novo.aluno','Novo Aluno da Silva','TEST_aluno_1234','aluno',False)
+# Planilha de resultados com divergências, para o cenário da janela de correção (v3.17.0).
+import base64 as _b64, pathlib as _pl
+import model_data as _M, templates_v23 as _T
+_sh=['NOME','LOGIN','TURMA','NOME DO SIMULADO','DATA DE APLICAÇÃO','COR DA PROVA','L. ESTRANGEIRA',6,7,8]
+_st=[['Ana Souza','ana.souza','turma um','Simulado Correção','05/11/2026','AZUL','','A','B','C'],
+     ['Bruno Lima','bruno.lima','turma um','Simulado Corecao','05/11/2026','AZUL','','A','B','D'],
+     ['Novo Aluno da Silva','novo.aluno','turma um','Simulado Correção','05/11/2026','VERDE','','A','A','C'],
+     ['Ana Souza','ana.souza','turma um','Simulado Correção','05/11/2026','AZUL','','A','B','C']]
+_mh=['NOME DO SIMULADO','DATA DE APLICAÇÃO','COR DA PROVA','QUESTÃO','ÁREA','DISCIPLINA','TÓPICO','ASSUNTO','HABILIDADE','LÍNGUA ESTRANGEIRA','GABARITO']
+_mp=[['Simulado Correção','05/11/2026','AZUL',6,'LC','Português','T','A','H01','','A'],
+     ['Simulado Correção','05/11/2026','AZUL',7,'XX','Matemática','T','A','H02','','B'],
+     ['Simulado Correção','05/11/2026','AZUL',8,'MT','','T','A','H03','','C']]
+_blob,_=_T.export(_sh,_st,first_name=_M.STUDENTS_SHEET,extra_sheets=[(_M.EXAM_SHEET,_mh,_mp)])
+(_pl.Path(sys.argv[2]).parent/'broken_results.b64').write_text(_b64.b64encode(_blob).decode())
+# Notas TRI do mesmo simulado, com um nome digitado errado (cenário 14).
+_th=['NOME','NOME DO SIMULADO','DATA DE APLICAÇÃO','TURMA','RANKING','TRI LINGUAGENS','TRI HUMANAS','TRI NATUREZA','TRI MATEMÁTICA','C1','C2','C3','C4','C5']
+_tr=[['Ana Souza','Simulado Correção','05/11/2026','Turma 1',1,650,640,630,620,160,160,160,160,160],
+     ['Bruno Lma','Simulado Correção','05/11/2026','Turma 1',2,640,630,620,610,140,140,140,140,140]]
+_tblob=_T.export(_th,_tr,first_name='TRI e Redação')
+_tblob=_tblob[0] if isinstance(_tblob,tuple) else _tblob
+(_pl.Path(sys.argv[2]).parent/'tri_names.b64').write_text(_b64.b64encode(_tblob).decode())

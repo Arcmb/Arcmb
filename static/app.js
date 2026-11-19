@@ -28,7 +28,7 @@ function safeLeave(){return !dirty||confirm('Há alterações não salvas. Desej
 async function api(url,data){
  const r=await fetch(url,{method:data===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:data===undefined?{}:{'Content-Type':'application/json','X-CSRF-Token':CSRF},body:data===undefined?undefined:JSON.stringify(data)});
  const result=await r.json().catch(()=>({error:'Resposta inesperada do servidor.'}));
- if(!r.ok){if(r.status===401){status('Sessão expirada · entre novamente',true);throw new Error('Sessão expirada. Suas alterações não foram salvas. Reabra o site e entre novamente.');}if(r.status===409)status('Conflito de versão · atualize antes de salvar',true);throw new Error(result.error||'Não foi possível concluir.');}return result;
+ if(!r.ok){if(r.status===401){status('Sessão expirada · entre novamente',true);throw new Error('Sessão expirada. Suas alterações não foram salvas. Reabra o site e entre novamente.');}if(r.status===409)status('Conflito de versão · atualize antes de salvar',true);const failure=new Error(result.error||'Não foi possível concluir.');failure.status=r.status;failure.data=result;throw failure;}return result;
 }
 async function load(){S=await api('/api/state?user='+encodeURIComponent(target));P=S.profile;CSRF=S.csrf;dirty=false;status('Salvo no servidor · versão '+S.version);if(!week)week=weekOf(S.serverDate);await loadCalendar();render();}
 async function loadCalendar(){if(!P)return;calendar=(await api('/api/calendar?user='+encodeURIComponent(target)+'&week='+week)).fixed;}

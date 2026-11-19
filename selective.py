@@ -71,7 +71,12 @@ def available_fields(app,c,user):
 def matrix(data):
  try:blob=base64.b64decode(data.get('file',''),validate=True)
  except (ValueError,TypeError):raise ValueError('Arquivo inválido.')
- return (*F.load_matrix(F.text(data.get('filename',''),200),blob,F.text(data.get('sheet',''),100)),blob)
+ rows,epoch,sheets,sheet=F.load_matrix(F.text(data.get('filename',''),200),blob,F.text(data.get('sheet',''),100))
+ if data.get('fixes'):
+  # Correções feitas na janela de divergências: valem antes de qualquer validação.
+  import import_fixes as IF
+  rows=IF.apply(rows,sheet,data.get('fixes'))
+ return rows,epoch,sheets,sheet,blob
 
 def inspect(data):
  rows,epoch,sheets,sheet,blob=matrix(data)

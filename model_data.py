@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import io
 import json
+import import_fixes as _IF
 import re
 import time
 from collections import defaultdict
@@ -195,48 +196,84 @@ def _parse(data, require_date=False):
     map_warnings = []
     reported_percent_present = False
 
+    # === CORREÇÃO NA INTERFACE V3.17.0 ===
+    # Em vez de parar no primeiro erro, cada linha com problema vira uma divergência com
+    # aba, linha, coluna e (quando cabe) as opções válidas; a interface corrige e reenvia.
+    issues = []
+    title_cells = []
+    date_cells = []
+
+    def take(field, fn, *args):
+        try:
+            return fn(*args)
+        except _IF.CellIssue:
+            raise
+        except ValueError as exc:
+            raise _IF.CellIssue(str(exc), field)
+
+    def report(sheet, header_row, columns, line, row, exc):
+        field = exc.field
+        col = field if type(field) is int else columns.get(field)
+        if col is None:
+            issues.append(_IF.issue(sheet, line, None, field or '', '', str(exc) + ' (a coluna não existe no arquivo; ajuste o arquivo ou ignore a linha)'))
+            return
+        value = row[col] if col < len(row) else None
+        header = header_row[col] if col < len(header_row) else ''
+        issues.append(_IF.issue(sheet, line, col, header, value, str(exc), exc.options, suggest=exc.suggest))
+
     for line, row in enumerate(exam_rows[eh + 1:], eh + 2):
         if not any(v not in (None, '') for v in row):
             continue
         at = lambda key: row[exam_columns[key]] if key in exam_columns and exam_columns[key] < len(row) else None
-        title = F.text(at('title'), 200)
-        color = _color(at('color'))
-        number = F.count_value(at('number'), f'DADOS DO SIMULADO · linha {line} · questão')
-        if not title or not color or number is None:
-            raise ValueError(f'DADOS DO SIMULADO · linha {line}: informe simulado, cor e questão.')
-        if not 1 <= number <= 180:
-            raise ValueError(f'DADOS DO SIMULADO · linha {line}: questão deve estar entre 1 e 180.')
-        date = F.date_value(at('date'), exam_epoch) if at('date') not in (None, '') else fallback_date
-        discipline = F.text(at('discipline'), 150)
-        if not discipline:
-            raise ValueError(f'DADOS DO SIMULADO · linha {line}: informe a disciplina da questão {number:02d}.')
-        area = E.area(at('area')) or E.DISC_AREAS.get(F.norm(discipline), '')
-        if area not in S.AREAS:
-            raise ValueError(f'DADOS DO SIMULADO · linha {line}: informe LC, CH, CN ou MT na área.')
-        language = _infer_language(discipline, at('language'))
-        if language not in ('', 'Inglês', 'Espanhol'):
-            raise ValueError(f'DADOS DO SIMULADO · linha {line}: língua estrangeira inválida.')
-        answer = _map_answer(at('answer'), f'DADOS DO SIMULADO · linha {line}')
-        key = (F.norm(title), date or '', F.norm(color), number, language)
-        if key in map_keys:
-            raise ValueError(f'DADOS DO SIMULADO · linha {line}: questão {number:02d}, cor e língua repetidas.')
+        where = f'DADOS DO SIMULADO · linha {line}'
+        try:
+            title = take('title', F.text, at('title'), 200)
+            color = take('color', _color, at('color'))
+            number = take('number', F.count_value, at('number'), f'{where} · questão')
+            if not title:
+                raise _IF.CellIssue(f'{where}: informe o nome do simulado.', 'title')
+            if not color:
+                raise _IF.CellIssue(f'{where}: informe a cor da prova.', 'color')
+            if number is None:
+                raise _IF.CellIssue(f'{where}: informe o número da questão.', 'number')
+            if not 1 <= number <= 180:
+                raise _IF.CellIssue(f'{where}: questão deve estar entre 1 e 180.', 'number')
+            date = take('date', F.date_value, at('date'), exam_epoch) if at('date') not in (None, '') else fallback_date
+            discipline = take('discipline', F.text, at('discipline'), 150)
+            if not discipline:
+                raise _IF.CellIssue(f'{where}: informe a disciplina da questão {number:02d}.', 'discipline')
+            area = E.area(at('area')) or E.DISC_AREAS.get(F.norm(discipline), '')
+            if area not in S.AREAS:
+                raise _IF.CellIssue(f'{where}: informe LC, CH, CN ou MT na área.', 'area', ['LC', 'CH', 'CN', 'MT'])
+            language = take('language', _infer_language, discipline, at('language'))
+            if language not in ('', 'Inglês', 'Espanhol'):
+                raise _IF.CellIssue(f'{where}: língua estrangeira inválida.', 'language', ['', 'Inglês', 'Espanhol'])
+            answer = take('answer', _map_answer, at('answer'), where)
+            key = (F.norm(title), date or '', F.norm(color), number, language)
+            if key in map_keys:
+                raise _IF.CellIssue(f'{where}: questão {number:02d}, cor e língua repetidas.', 'number')
+            topic = take('topic', F.text, at('topic'), 250)
+            subject = take('subject', F.text, at('subject'), 250)
+            skill = take('skill', _skill, at('skill'), where)
+        except _IF.CellIssue as exc:
+            report(EXAM_SHEET, exam_rows[eh], exam_columns, line, row, exc)
+            continue
         map_keys.add(key)
-        item = dict(number=number, area=area, discipline=discipline,
-                    topic=F.text(at('topic'), 250), subject=F.text(at('subject'), 250),
-                    skill=_skill(at('skill'), f'DADOS DO SIMULADO · linha {line}'),
-                    language=language, answer=answer)
+        item = dict(number=number, area=area, discipline=discipline, topic=topic, subject=subject,
+                    skill=skill, language=language, answer=answer)
         map_by_exam[(F.norm(title), date or '', F.norm(color))].append((title, date, color, item))
         map_titles.add(F.norm(title)); map_colors.add(F.norm(color))
-        if date: map_dates.add(date)
+        title_cells.append((EXAM_SHEET, exam_rows[eh], exam_columns, line, row, title))
+        if date:
+            map_dates.add(date)
+            if at('date') not in (None, ''):
+                date_cells.append((EXAM_SHEET, exam_rows[eh], exam_columns, line, row, date))
         if at('reported_percent') not in (None, ''):
             reported_percent_present = True
 
-    if not map_by_exam:
-        raise ValueError('DADOS DO SIMULADO não possui questões preenchidas.')
-    if len(map_titles) != 1:
-        raise ValueError('Use um arquivo por simulado. DADOS DO SIMULADO contém mais de um nome de avaliação.')
-    if require_date and not map_dates and not fallback_date:
-        raise ValueError('Informe a data de aplicação na planilha ou na conferência do site.')
+    map_color_names = {}
+    for rows in map_by_exam.values():
+        map_color_names.setdefault(F.norm(rows[0][2]), rows[0][2])
 
     students = []
     titles = set(); dates = set(); colors = set(); seen_students = set()
@@ -244,32 +281,76 @@ def _parse(data, require_date=False):
         if not any(v not in (None, '') for v in row):
             continue
         at = lambda key: row[student_columns[key]] if key in student_columns and student_columns[key] < len(row) else None
-        name = F.text(at('name'), 150)
-        title = F.text(at('title'), 200)
-        color = _color(at('color'))
-        if not name or not title or not color:
-            raise ValueError(f'DADOS DOS ALUNOS · linha {line}: informe nome, simulado e cor da prova.')
-        login = F.text(at('login'), 40).lower()
-        klass = F.text(at('class'), 150)
-        language = E.language(at('language'))
-        if language not in ('', 'Inglês', 'Espanhol'):
-            raise ValueError(f'DADOS DOS ALUNOS · linha {line}: língua deve ser Inglês, Espanhol ou vazia.')
-        date = F.date_value(at('date'), student_epoch) if at('date') not in (None, '') else fallback_date
-        if require_date and not date:
-            raise ValueError('Informe a data de aplicação na planilha ou na conferência do site.')
-        key = _student_key(name, klass, login)
-        if key in seen_students:
-            raise ValueError(f'DADOS DOS ALUNOS · linha {line}: participante repetido. Use LOGIN para distinguir homônimos.')
+        where = f'DADOS DOS ALUNOS · linha {line}'
+        try:
+            name = take('name', F.text, at('name'), 150)
+            title = take('title', F.text, at('title'), 200)
+            color = take('color', _color, at('color'))
+            if not name:
+                raise _IF.CellIssue(f'{where}: informe o nome do aluno.', 'name')
+            if not title:
+                raise _IF.CellIssue(f'{where}: informe o nome do simulado.', 'title')
+            if not color:
+                raise _IF.CellIssue(f'{where}: informe a cor da prova.', 'color', sorted(map_color_names.values()))
+            if map_color_names and F.norm(color) not in map_color_names:
+                raise _IF.CellIssue(f'{where}: não existe gabarito da cor {color} em DADOS DO SIMULADO.', 'color',
+                                    sorted(map_color_names.values()))
+            login = take('login', F.text, at('login'), 40).lower()
+            klass = take('class', F.text, at('class'), 150)
+            language = E.language(at('language'))
+            if language not in ('', 'Inglês', 'Espanhol'):
+                raise _IF.CellIssue(f'{where}: língua deve ser Inglês, Espanhol ou vazia.', 'language', ['', 'Inglês', 'Espanhol'])
+            date = take('date', F.date_value, at('date'), student_epoch) if at('date') not in (None, '') else fallback_date
+            if require_date and not date:
+                raise _IF.CellIssue(f'{where}: informe a data de aplicação.', 'date')
+            key = _student_key(name, klass, login)
+            if key in seen_students:
+                raise _IF.CellIssue(f'{where}: participante repetido. Use LOGIN para distinguir homônimos, ou ignore a linha repetida.', 'name')
+            responses = {}
+            for index, number in question_columns.items():
+                value = row[index] if index < len(row) else None
+                responses[number] = take(index, _answer, value, f'{where} · questão {number:02d}')
+        except _IF.CellIssue as exc:
+            report(STUDENTS_SHEET, student_rows[sh], student_columns, line, row, exc)
+            continue
         seen_students.add(key)
-        responses = {}
-        for index, number in question_columns.items():
-            value = row[index] if index < len(row) else None
-            responses[number] = _answer(value, f'DADOS DOS ALUNOS · linha {line} · questão {number:02d}')
         students.append(dict(key=key, name=name, login=login, group=klass, title=title,
                              date=date, color=color, language=language, responses=responses, line=line))
         titles.add(F.norm(title)); colors.add(F.norm(color))
-        if date: dates.add(date)
+        title_cells.append((STUDENTS_SHEET, student_rows[sh], student_columns, line, row, title))
+        if date:
+            dates.add(date)
+            if at('date') not in (None, ''):
+                date_cells.append((STUDENTS_SHEET, student_rows[sh], student_columns, line, row, date))
 
+    # Nome e data do simulado: aponta só as linhas que divergem do restante do arquivo.
+    def odd_ones(cells, field, label, shown):
+        counts = defaultdict(int)
+        first = {}
+        for cell in cells:
+            counts[F.norm(cell[5])] += 1
+            first.setdefault(F.norm(cell[5]), cell[5])
+        if len(counts) <= 1:
+            return
+        main = max(counts, key=lambda k: counts[k])
+        for sheet, header_row, columns, line, row, value in cells:
+            if F.norm(value) != main:
+                report(sheet, header_row, columns, line, row, _IF.CellIssue(
+                    f'{sheet} · linha {line}: {label} diferente do restante do arquivo ({shown(first[main])}).',
+                    field, [shown(first[main])], suggest=shown(first[main])))
+
+    odd_ones(title_cells, 'title', 'nome do simulado', lambda v: v)
+    if require_date:
+        odd_ones(date_cells, 'date', 'data de aplicação', lambda v: '/'.join(reversed(str(v).split('-'))))
+    if issues:
+        raise _IF.ImportIssues(issues)
+
+    if not map_by_exam:
+        raise ValueError('DADOS DO SIMULADO não possui questões preenchidas.')
+    if len(map_titles) != 1:
+        raise ValueError('Use um arquivo por simulado. DADOS DO SIMULADO contém mais de um nome de avaliação.')
+    if require_date and not map_dates and not fallback_date:
+        raise ValueError('Informe a data de aplicação na planilha ou na conferência do site.')
     if not students:
         raise ValueError('DADOS DOS ALUNOS não possui participantes.')
     if len(titles) != 1:
@@ -299,10 +380,11 @@ def _parse(data, require_date=False):
         missing = sorted(supplied - answered)
         if missing:
             warnings.append(f'{exam["color"]}: {len(missing)} questão(ões) sem gabarito; respostas dessas questões ficarão como não calculadas.')
-    return dict(blob=blob, hash=hashlib.sha256(blob).hexdigest(), sheets=sheets,
+    return dict(blob=blob, hash=hashlib.sha256(blob + _IF.digest(data.get('fixes')).encode()).hexdigest(), sheets=sheets,
                 students=students, exams=exams, title=students[0]['title'], date=date,
                 colors=sorted({x['color'] for x in students}), questions=sorted(question_columns.values()),
-                mapRows=sum(len(x['items']) for x in exams.values()), warnings=warnings)
+                mapRows=sum(len(x['items']) for x in exams.values()), warnings=warnings,
+                columns=dict(students=student_columns, studentHeader=list(student_rows[sh]), studentHeaderLine=sh + 1))
 
 
 def inspect(data):
@@ -760,6 +842,7 @@ def _parse(data, require_date=False):
     parsed = _v27_two_tab_parse(data, require_date)
     applicable = set(parsed.get('questions') or [])
     maps_with_languages = set()
+    issues = []
     for exam_key, exam in parsed['exams'].items():
         by_number = defaultdict(list)
         for item in exam['items']:
@@ -772,23 +855,35 @@ def _parse(data, require_date=False):
             items = by_number.get(number, [])
             languages = {item.get('language') for item in items if item.get('language')}
             if languages != {'Inglês', 'Espanhol'}:
-                raise ValueError(
-                    f'DADOS DO SIMULADO: a questão {number:02d} deve possuir uma linha de Inglês e outra de Espanhol para cada cor.'
-                )
-            if any(not item.get('answer') for item in items if item.get('language')):
+                issues.append(_IF.general(
+                    f'DADOS DO SIMULADO · {exam["color"]}: a questão {number:02d} deve possuir uma linha de Inglês e outra de Espanhol.'))
+            elif any(not item.get('answer') for item in items if item.get('language')):
                 parsed['warnings'].append(
                     f'{exam["color"]}: questão {number:02d} possui versão de língua sem gabarito e não será calculada nessa versão.'
                 )
-        invalid = [item['number'] for item in exam['items'] if item.get('language') and item['number'] > 5]
+        invalid = sorted({item['number'] for item in exam['items'] if item.get('language') and item['number'] > 5})
         if invalid:
-            raise ValueError('DADOS DO SIMULADO: língua estrangeira só deve ser informada nas questões 01 a 05.')
+            issues.append(_IF.general(
+                f'DADOS DO SIMULADO · {exam["color"]}: língua estrangeira só deve ser informada nas questões 01 a 05 '
+                f'(informada na(s) questão(ões) {", ".join(f"{n:02d}" for n in invalid[:10])}). Apague a língua dessas linhas.'))
 
+    columns = parsed.get('columns') or {}
+    lang_col = (columns.get('students') or {}).get('language')
+    header = columns.get('studentHeader') or []
     for student in parsed['students']:
         exam_key = (F.norm(student['title']), student['date'], F.norm(student['color']))
         if exam_key in maps_with_languages and not student.get('language'):
-            raise ValueError(
-                f'DADOS DOS ALUNOS · linha {student["line"]}: informe Inglês ou Espanhol para selecionar o gabarito das questões 01 a 05.'
-            )
+            message = (f'DADOS DOS ALUNOS · linha {student["line"]}: informe Inglês ou Espanhol para selecionar '
+                       'o gabarito das questões 01 a 05.')
+            if lang_col is None:
+                issues.append(_IF.issue(STUDENTS_SHEET, student['line'], None, 'L. ESTRANGEIRA', '',
+                                        message + ' (a coluna não existe no arquivo)'))
+            else:
+                issues.append(_IF.issue(STUDENTS_SHEET, student['line'], lang_col,
+                                        header[lang_col] if lang_col < len(header) else 'L. ESTRANGEIRA', '',
+                                        message, ['Inglês', 'Espanhol']))
+    if issues:
+        raise _IF.ImportIssues(issues)
     return parsed
 
 # === MEU CRONOGRAMA: EXPORTAÇÃO COLETIVA POR SIMULADO ===
@@ -3072,6 +3167,38 @@ def _v36_validate_class_names(app,c,names,source_label):
             'Cadastre a turma ou ajuste o nome/alias no Painel de bordo antes de importar.'
         )
 
+def _v317_class_issues(app,c,parsed):
+    """Turmas não cadastradas viram divergências corrigíveis (v3.17.0).
+
+    Um nome desconhecido aparece uma vez só, com a lista de turmas cadastradas: a escolha
+    troca o nome em todas as linhas da coluna TURMA. Linhas sem turma aparecem uma a uma.
+    """
+    lookup=_v36_class_lookup(app,c)
+    names=[row['name'] for row in _v36_class_rows(app,c,True)]
+    columns=parsed.get('columns') or {}
+    col=(columns.get('students') or {}).get('class')
+    header=columns.get('studentHeader') or []
+    label=header[col] if col is not None and col<len(header) else 'TURMA'
+    issues=[];unknown={}
+    for student in parsed.get('students',[]):
+        raw=F.text(student.get('group'),160)
+        if not raw:
+            if col is not None:
+                issues.append(_IF.issue(STUDENTS_SHEET,student['line'],col,label,'',
+                                        f'DADOS DOS ALUNOS · linha {student["line"]}: informe a turma do aluno {student["name"]}.',names))
+            continue
+        if F.norm(raw) not in lookup:
+            unknown.setdefault(F.norm(raw),[raw,0])[1]+=1
+    if col is None and parsed.get('students'):
+        issues=[_IF.general('DADOS DOS ALUNOS não tem a coluna TURMA. Inclua a coluna no arquivo e envie de novo.')]
+    for raw,count in sorted(unknown.values(),key=lambda x:F.norm(x[0])):
+        issues.append(_IF.issue(STUDENTS_SHEET,None,col,label,raw,
+                                f'Turma "{raw}" não está cadastrada ({count} aluno(s)). Escolha a turma cadastrada correspondente '
+                                '(a troca vale para todas as linhas com esse nome) ou cadastre a turma no Painel de bordo.',
+                                names,kind='replace'))
+    if issues:
+        raise _IF.ImportIssues(issues)
+
 def _v36_class_payload(app,c):
     rows=_v36_class_rows(app,c,False)
     lookup=_v36_class_lookup(app,c)
@@ -3340,7 +3467,7 @@ def handle(app,c,user,path,method,data,query,start,HTTPError):
 
     if path in ('/api/model-data/preview','/api/model-data/confirm') and method=='POST' and user.get('role') in ('master','coordenador'):
         parsed=_parse(data,False)
-        _v36_validate_class_names(app,c,[student.get('group') for student in parsed.get('students',[])],'DADOS DOS ALUNOS')
+        _v317_class_issues(app,c,parsed)
 
     return _v36_original_handle(app,c,user,path,method,data,query,start,HTTPError)
 
@@ -5137,3 +5264,160 @@ def handle(app,c,user,path,method,data,query,start,HTTPError):
             raise HTTPError(405,'Use GET para consultar o caderno.')
         return app.reply(start,200,_v316_exam_detail(app,c,user,query,HTTPError))
     return _v316_detail_handle_base(app,c,user,path,method,data,query,start,HTTPError)
+
+# === CORREÇÃO NA INTERFACE · NOTAS TRI V3.17.0 ===
+# Valores fora da faixa e turmas não cadastradas viram divergências corrigíveis; nomes que
+# não batem com os alunos do simulado aparecem na conferência com sugestões de vínculo.
+import difflib as _v317_difflib
+
+_v317_tri_xlsx_rows_base=_tri_xlsx_rows
+
+def _tri_xlsx_rows(data):
+    sheets=_v317_tri_xlsx_rows_base(data)
+    if data.get('fixes'):
+        for sheet in sheets:
+            sheet['rows']=_IF.apply(sheet['rows'],sheet['name'],data.get('fixes'))
+    return sheets
+
+def _v317_tri_parse(data):
+    """Mesmas regras da leitura de notas, mas devolve todas as divergências de uma vez."""
+    sheets=_tri_xlsx_rows(data)
+    sheet,header_row,header_span,columns,header=_tri_detect_table(sheets)
+    label=lambda key:(header[columns[key]] if columns.get(key) is not None and columns[key]<len(header) else key)
+    records=[];issues=[]
+
+    def problem(line,row,key,message,options=None,suggest=None):
+        col=columns.get(key)
+        value=row[col] if col is not None and col<len(row) else ''
+        issues.append(_IF.issue(sheet['name'],line,col,label(key),value,message,options,suggest=suggest))
+
+    for source_index,row in enumerate(sheet['rows'][header_row+header_span:],start=header_row+header_span+1):
+        def value(key):
+            index=columns.get(key)
+            return row[index] if index is not None and index<len(row) else ''
+        name=F.text(value('name'),250)
+        if not name:
+            continue
+        scores={key:_tri_number(value(key)) for key in _QI_TRI_NUMERIC_KEYS}
+        scores['redactionTheme']=F.text(value('redactionTheme'),500) or None
+        competencies=[scores[key] for key in ('c1','c2','c3','c4','c5')]
+        bad=False
+        for index,number in enumerate(competencies,start=1):
+            if number is not None and not 0<=number<=200:
+                problem(source_index,row,f'c{index}',f'Linha {source_index} ({name}): C{index} deve estar entre 0 e 200.');bad=True
+        if scores['redaction'] is not None and not 0<=scores['redaction']<=1000:
+            problem(source_index,row,'redaction',f'Linha {source_index} ({name}): a nota de redação deve estar entre 0 e 1000.');bad=True
+        if bad:
+            continue
+        if all(number is not None for number in competencies):
+            total=round(sum(competencies),4)
+            if scores['redaction'] is None:
+                scores['redaction']=total
+            elif abs(scores['redaction']-total)>.01:
+                shown=int(total) if float(total).is_integer() else total
+                problem(source_index,row,'redaction',
+                        f'Linha {source_index} ({name}): a nota de redação ({scores["redaction"]:g}) difere da soma C1–C5 ({shown}). '
+                        'Corrija a nota ou a competência errada.',[str(shown)],suggest=str(shown))
+                continue
+        if all(scores.get(key) is None for key in _QI_TRI_SIGNATURE_KEYS):
+            continue
+        if scores['tri'] is None and all(scores[key] is not None for key in ('lc','ch','cn','mt','redaction')):
+            scores['tri']=round(sum(scores[key] for key in ('lc','ch','cn','mt','redaction'))/5,3)
+        records.append({
+            'name':name,'nameKey':F.norm(name),'group':F.text(value('group'),150),
+            'activity':F.text(value('activity'),200),'date':_tri_iso_date(value('date')),
+            'language':F.text(value('language'),40),'scores':scores,'line':source_index,
+        })
+    detected={key:F.text(header[index] if index<len(header) else '',120) for key,index in columns.items()}
+    parsed={'sheet':sheet['name'],'headerRow':header_row+1,'columns':detected,'records':records,
+            '_columnIndex':dict(columns),'_header':list(header)}
+    return parsed,issues
+
+def _tri_parse_ranking(data):
+    parsed,issues=_v317_tri_parse(data)
+    if issues:
+        raise _IF.ImportIssues(issues)
+    if not parsed['records']:
+        raise ValueError('A planilha foi encontrada, mas não contém notas TRI ou de redação preenchidas.')
+    return parsed
+
+def _v317_tri_class_issues(app,c,parsed):
+    lookup=_v36_class_lookup(app,c)
+    names=[row['name'] for row in _v36_class_rows(app,c,True)]
+    col=parsed['_columnIndex'].get('group')
+    header=parsed['_header']
+    label=header[col] if col is not None and col<len(header) else 'TURMA'
+    issues=[];unknown={}
+    for record in parsed['records']:
+        raw=F.text(record.get('group'),160)
+        if not raw:
+            if col is not None:
+                issues.append(_IF.issue(parsed['sheet'],record['line'],col,label,'',
+                                        f'Linha {record["line"]} ({record["name"]}): informe a turma.',names))
+            continue
+        if F.norm(raw) not in lookup:
+            unknown.setdefault(F.norm(raw),[raw,0])[1]+=1
+    if col is None and parsed['records']:
+        return [_IF.general('A planilha de notas não tem a coluna TURMA. Inclua a coluna no arquivo e envie de novo.')]
+    for raw,count in sorted(unknown.values(),key=lambda x:F.norm(x[0])):
+        issues.append(_IF.issue(parsed['sheet'],None,col,label,raw,
+                                f'Turma "{raw}" não está cadastrada ({count} aluno(s)). Escolha a turma cadastrada correspondente '
+                                '(a troca vale para todas as linhas com esse nome) ou cadastre a turma no Painel de bordo.',
+                                names,kind='replace'))
+    return issues
+
+def _v317_tri_match_issues(parsed,match):
+    """Divergências que não impedem a importação: nomes sem aluno no simulado e nomes repetidos."""
+    col=parsed['_columnIndex'].get('name')
+    header=parsed['_header']
+    label=header[col] if col is not None and col<len(header) else 'NOME'
+    free=sorted(set(match['withoutScore']),key=F.norm)  # alunos do simulado ainda sem nota nesta planilha
+    unmatched={F.norm(n) for n in match['unmatched']}
+    conflicted={F.norm(item['name']):item['reason'] for item in match['conflicts']}
+    issues=[]
+    for record in parsed['records']:
+        key=record['nameKey']
+        if key in unmatched:
+            ranked=sorted(free,key=lambda n:(-_v317_difflib.SequenceMatcher(None,key,F.norm(n)).ratio(),F.norm(n)))
+            issues.append(_IF.issue(parsed['sheet'],record['line'],col,label,record['name'],
+                                    f'Linha {record["line"]}: "{record["name"]}" não corresponde a nenhum aluno deste simulado. '
+                                    'Escolha o aluno correto (os nomes mais parecidos aparecem primeiro) ou ignore a linha.',ranked))
+        elif key in conflicted:
+            issues.append(_IF.issue(parsed['sheet'],record['line'],col,label,record['name'],
+                                    f'Linha {record["line"]}: {conflicted[key]} Ignore as linhas que não são deste simulado.'))
+    return issues
+
+def _tri_preview(app,c,data):
+    parsed,issues=_v317_tri_parse(data)
+    issues+=_v317_tri_class_issues(app,c,parsed)
+    if issues:
+        raise _IF.ImportIssues(issues)
+    if not parsed['records']:
+        raise ValueError('A planilha foi encontrada, mas não contém notas TRI ou de redação preenchidas.')
+    activity_key=F.text(data.get('activityKey'),250)
+    applied_on=F.date_value(data.get('date'))
+    match=_tri_match(app,c,parsed,activity_key,applied_on)
+    sample=[];changed=unchanged=0
+    for pair in match['matched']:
+        metadata=_rx_json(pair['target'].get('metadata'))
+        old=_tri_scores_from_metadata(metadata)
+        new=pair['source']['scores']
+        has_change=any(new.get(key) is not None and old.get(key)!=new.get(key) for key in new)
+        changed+=int(has_change);unchanged+=int(not has_change)
+        if len(sample)<20:
+            sample.append({'name':pair['target']['student_name'],'login':pair['target']['student_login'],
+                           **{key:new.get(key) for key in _QI_TRI_SIGNATURE_KEYS},'changed':has_change})
+    preview={
+        'sheet':parsed['sheet'],'sourceRows':len(parsed['records']),'students':len(match['targets']),
+        'matched':len(match['matched']),'changed':changed,'unchanged':unchanged,
+        'unmatched':len(match['unmatched']),'conflicts':len(match['conflicts']),
+        'withoutScore':len(match['withoutScore']),'sample':sample,
+        'issues':_v317_tri_match_issues(parsed,match)[:_IF.MAX_ISSUES],
+    }
+    public={k:v for k,v in parsed.items() if not k.startswith('_')}
+    return public,match,preview
+
+# O modelo oficial de TRI (gerado pelo próprio site) usa "NOTA TRI GERAL" e "NOTA DA REDAÇÃO";
+# esses nomes não eram reconhecidos: a nota geral era recalculada e a de redação vinha da soma C1–C5.
+_TRI_ALIASES['tri']=set(_TRI_ALIASES['tri'])|{'nota tri geral','tri geral','nota geral tri'}
+_TRI_ALIASES['redaction']=set(_TRI_ALIASES['redaction'])|{'nota da redacao','redacao nota','nota final da redacao'}

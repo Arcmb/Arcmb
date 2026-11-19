@@ -45,34 +45,46 @@ def parse(data):
  if not all(k in idx for k in ('QUESTÃO','DISCIPLINA')):raise ValueError('Selecione QUESTÃO e DISCIPLINA. Tópico, assunto e habilidade podem ser completados depois.')
  default=area(data.get('area',''))
  if default not in S.AREAS+['']:raise ValueError('Área inválida.')
- items=[];seen=set()
+ # === CORREÇÃO NA INTERFACE V3.17.0 ===
+ # Cada linha com problema vira uma divergência (linha, coluna, valor, opções); a validação
+ # continua nas próximas linhas e a interface corrige tudo de uma vez.
+ import import_fixes as IF
+ items=[];seen=set();issues=[];header=rows[0];lines={}
+ def problem(line,row,field,message,options=None):
+  col=idx.get(field)
+  value=row[col]if col is not None and col<len(row)else ''
+  issues.append(IF.issue(sheet,line,col,header[col]if col is not None and col<len(header)else field,value,message,options))
  for line,row in enumerate(rows[1:],2):
   if not any(v not in(None,'')for v in row):continue
   at=lambda k:row[idx[k]]if k in idx and idx[k]<len(row)else ''
-  number=F.count_value(at('QUESTÃO'),'Questão')
-  if number is None or not 1<=number<=180:raise ValueError(f'Linha {line}: questão deve estar entre 1 e 180.')
+  try:number=F.count_value(at('QUESTÃO'),'Questão')
+  except ValueError as exc:problem(line,row,'QUESTÃO',f'Linha {line}: {exc}');continue
+  if number is None or not 1<=number<=180:problem(line,row,'QUESTÃO',f'Linha {line}: questão deve estar entre 1 e 180.');continue
   disc=F.text(at('DISCIPLINA'),150)
-  if not disc:raise ValueError(f'Linha {line}: informe a disciplina.')
+  if not disc:problem(line,row,'DISCIPLINA',f'Linha {line}: informe a disciplina da questão {number:02d}.');continue
   ar=area(at('ÁREA'))or default or DISC_AREAS.get(F.norm(disc),'')
-  if ar not in S.AREAS+['']:raise ValueError(f'Linha {line}: área inválida.')
+  if ar not in S.AREAS+['']:problem(line,row,'ÁREA',f'Linha {line}: área inválida.',['LC','CH','CN','MT']);continue
   skill=F.text(at('HABILIDADE'),40).upper().replace(' ','')
   if skill:
    m=re.fullmatch(r'(?:C\d+)?H0*([1-9]|[12][0-9]|30)',skill)
-   if not m:raise ValueError(f'Linha {line}: habilidade deve ter formato H01 a H30 ou C2H5.')
+   if not m:problem(line,row,'HABILIDADE',f'Linha {line}: habilidade deve ter formato H01 a H30 ou C2H5.');continue
    skill='H'+str(int(m[1])).zfill(2)
-   if not ar:raise ValueError(f'Linha {line}: informe a área para distinguir a habilidade.')
+   if not ar:problem(line,row,'ÁREA',f'Linha {line}: informe a área para distinguir a habilidade.',['LC','CH','CN','MT']);continue
   lang=language(at('LÍNGUA ESTRANGEIRA'))
-  if lang not in ('','Inglês','Espanhol'):raise ValueError(f'Linha {line}: língua deve ser Inglês, Espanhol ou vazia.')
+  if lang not in ('','Inglês','Espanhol'):problem(line,row,'LÍNGUA ESTRANGEIRA',f'Linha {line}: língua deve ser Inglês, Espanhol ou vazia.',['','Inglês','Espanhol']);continue
   key=(number,lang)
-  if key in seen:raise ValueError(f'Linha {line}: questão e língua repetidas.')
-  seen.add(key)
+  if key in seen:problem(line,row,'QUESTÃO',f'Linha {line}: questão {number:02d} e língua repetidas (já aparece na linha {lines[key]}). Corrija o número ou ignore a linha.');continue
   answer=F.text(at('GABARITO'),30).upper()
-  if answer and answer not in ('A','B','C','D','E','ANULADA'):raise ValueError(f'Linha {line}: gabarito deve ser A–E, ANULADA ou vazio.')
+  if answer and answer not in ('A','B','C','D','E','ANULADA'):problem(line,row,'GABARITO',f'Linha {line}: gabarito deve ser A–E, ANULADA ou vazio.',['A','B','C','D','E','ANULADA','']);continue
+  seen.add(key);lines[key]=line
   items.append(dict(number=number,area=ar,discipline=disc,topic=F.text(at('TÓPICO'),250),subject=F.text(at('ASSUNTO'),250),skill=skill,language=lang,answer=answer))
+ for (number,lang),line in sorted(lines.items(),key=lambda x:x[1]):
+  if lang and (number,'')in seen:
+   issues.append(IF.issue(sheet,lines[(number,'')],idx.get('LÍNGUA ESTRANGEIRA'),'LÍNGUA ESTRANGEIRA','',
+    f'Linha {lines[(number,"")]}: a questão {number:02d} tem versão geral e versão por língua (linha {line}). Identifique a língua desta linha.',['Inglês','Espanhol']))
+ if issues:raise IF.ImportIssues(issues)
  if not items:raise ValueError('Nenhuma questão encontrada.')
- for number,lang in seen:
-  if lang and (number,'')in seen:raise ValueError('Questão com versão geral e versão por língua ao mesmo tempo. Identifique a língua das duas versões.')
- return dict(items=items,sheet=sheet,hash=hashlib.sha256(blob).hexdigest())
+ return dict(items=items,sheet=sheet,hash=hashlib.sha256(blob+IF.digest(data.get('fixes')).encode()).hexdigest())
 
 def prepared(app,c,user,data):
  parsed=parse(data);eid=F.text(data.get('examId',''),80);old=get_exam(app,c,eid)if eid else None

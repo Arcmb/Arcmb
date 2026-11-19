@@ -1,0 +1,80 @@
+const list=await (await fetch('http://127.0.0.1:9222/json/list')).json();const page=list.find(x=>x.type==='page');
+const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);let id=0;const pend={};const errors=[];
+ws.onmessage=m=>{const d=JSON.parse(m.data);if(d.id&&pend[d.id]){pend[d.id](d);delete pend[d.id];}if(d.method==='Runtime.exceptionThrown')errors.push((d.params.exceptionDetails.exception?.description||d.params.exceptionDetails.text||'').split('\n')[0]);};
+const send=(method,params={})=>new Promise(r=>{const i=++id;pend[i]=r;ws.send(JSON.stringify({id:i,method,params}));});const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const ev=async e=>{const r=await send('Runtime.evaluate',{expression:e,awaitPromise:true,returnByValue:true});return r.result.exceptionDetails?'ERR '+(r.result.exceptionDetails.exception?.description||'').split('\n')[0]:r.result.result.value;};
+await send('Runtime.enable');await send('Network.enable');
+let fails=0;const check=(label,cond,extra='')=>{console.log((cond?'OK  ':'FALHA ')+label+(extra?' → '+extra:''));if(!cond)fails++;};
+async function login(u,p){await send('Network.clearBrowserCookies');await send('Page.navigate',{url:'http://127.0.0.1:8765/login'});await sleep(1500);await ev(`document.querySelector('[name=username]').value='${u}';document.querySelector('[name=password]').value='${p}';document.querySelector('form').submit()`);await sleep(3500);await ev(`document.querySelectorAll('dialog[open],.guide-overlay,.use-guide').forEach(x=>x.remove?.());1`);}
+const nav=()=>ev(`[...document.querySelectorAll('#nav button')].map(b=>b.textContent.replace(/^\\d+/,'').trim()).join(' | ')`);
+const search=async q=>{await ev(`{const i=document.querySelector('#account-search');i.focus();i.value=${JSON.stringify(q)};i.dispatchEvent(new Event('input',{bubbles:true}));}1`);await sleep(300);await ev(`document.querySelector('.account-search-result').dispatchEvent(new MouseEvent('mousedown',{bubbles:true}));1`);await sleep(2500);};
+const shot=async n=>{const r=await send('Page.captureScreenshot',{format:'png'});(await import('fs')).writeFileSync('/tmp/qi-browser-'+n+'.png',Buffer.from(r.result.data,'base64'));};
+const sel=async(q,v)=>{await ev(`(()=>{const s=document.querySelector(${JSON.stringify(q)});s.value=${JSON.stringify(v)};s.dispatchEvent(new Event('change',{bubbles:true}));return 1})()`);await sleep(800);};
+await send('Page.enable');await ev(`window.confirm=()=>true;1`);
+await login('arcmb','TEST_master_13579');await ev(`window.confirm=()=>true;1`);
+import {readFileSync} from 'node:fs';
+import {dirname} from 'node:path';
+const broken=readFileSync(dirname(process.env.LOCAL_DB)+'/broken_results.b64','utf8').trim();
+await ev(`window.confirm=()=>true;1`);
+const rows=()=>ev(`[...document.querySelectorAll('.import-fix-table tbody tr')].map(r=>[...r.cells].slice(0,4).map(c=>c.innerText).join(' | '))`);
+const setFix=(where,field,value)=>ev(`(()=>{const r=[...document.querySelectorAll('.import-fix-table tbody tr')].find(r=>r.cells[0].innerText.includes(${JSON.stringify(where)})&&r.cells[1].innerText.includes(${JSON.stringify(field)}));if(!r)return 'sem linha';const el=r.cells[4].querySelector('select,input');el.value=${JSON.stringify(value)};el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));return el.value})()`);
+const skip=(where)=>ev(`(()=>{const r=[...document.querySelectorAll('.import-fix-table tbody tr')].find(r=>r.cells[0].innerText.includes(${JSON.stringify(where)}));r.querySelector('input[type=checkbox]').click();return 1})()`);
+const clickAct=act=>ev(`(()=>{const b=document.createElement('button');b.dataset.act=${JSON.stringify(act)};b.hidden=true;document.body.appendChild(b);b.click();b.remove();return 1})()`);
+const startDraft=()=>ev(`resultImportDraft={file:${JSON.stringify(broken)},filename:'erros.xlsx',date:'',replace:false,replaceMap:false,inspection:null,preview:null,token:null,mapping:{}};1`);
+
+await ev(`[...document.querySelectorAll('#nav button')].find(b=>b.textContent.includes('Importar resultados')).click();1`);await sleep(2000);
+// 1) Cancelar: fechar a janela interrompe a importação.
+await startDraft();await clickAct('result-import-inspect');await sleep(2500);
+check('Janela de correção abre',await ev(`document.querySelector('#dialog-title').textContent`)==='Corrigir divergências do arquivo');
+await ev(`document.querySelector('#close-dialog').click();1`);await sleep(800);
+check('Fechar interrompe com aviso',/Importação interrompida/.test(await ev(`document.querySelector('#toast').textContent`)),await ev(`document.querySelector('#toast').textContent`));
+// 2) Corrigir tudo na conferência do arquivo.
+await startDraft();await clickAct('result-import-inspect');await sleep(2500);
+let found=await rows();console.log(found.join('\n'));
+check('Todas as divergências de uma vez',found.length===5,String(found.length));
+check('Aponta aba, linha, campo e valor',found.some(r=>/DADOS DO SIMULADO · linha 3 \| ÁREA \| XX/.test(r)),found[0]);
+check('Lista de áreas válidas',await ev(`[...[...document.querySelectorAll('.import-fix-table tbody tr')].find(r=>r.cells[1].innerText.includes('ÁREA')).querySelectorAll('option')].map(o=>o.value).join()`)==='__keep__,LC,CH,CN,MT');
+check('Sugestão do servidor já escolhida (nome do simulado)',await ev(`[...document.querySelectorAll('.import-fix-table tbody tr')].find(r=>r.cells[1].innerText.includes('NOME DO SIMULADO')).querySelector('select').value`)==='Simulado Correção');
+await shot('corrigir-divergencias');
+check('Lista de valores válidos não vem pré-escolhida (cor)',await ev(`[...document.querySelectorAll('.import-fix-table tbody tr')].find(r=>r.cells[1].innerText.includes('COR DA PROVA')).querySelector('select').value`)==='__keep__');
+await setFix('linha 3','ÁREA','MT');
+await ev(`document.querySelector('#modal-form button[type=submit]').click();1`);await sleep(2500);
+check('Correção parcial mantém a janela e atualiza a lista',(await rows()).length===3&&/Ainda faltam 3/.test(await ev(`document.querySelector('#modal-error').textContent`)),await ev(`document.querySelector('#modal-error').textContent`));
+await setFix('linha 4','DISCIPLINA','Matemática');
+await setFix('DADOS DOS ALUNOS · linha 4','COR DA PROVA','AZUL');
+await skip('DADOS DOS ALUNOS · linha 5');
+await ev(`document.querySelector('#modal-form button[type=submit]').click();1`);await sleep(2500);
+check('Janela fechou',await ev(`!document.querySelector('#dialog[open]')`));
+check('Arquivo reconhecido com as correções',/Arquivo reconhecido/.test(await ev(`document.querySelector('#result-import-inspection').innerText`)));
+check('Aviso de correções aplicadas',/5 correção\(ões\) aplicada/.test(await ev(`document.querySelector('#toast').textContent`)),await ev(`document.querySelector('#toast').textContent`));
+// 3) Turma não cadastrada: troca em todas as linhas.
+const cls=await ev(`fetch('/api/model-data/classes',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':CSRF},body:JSON.stringify({name:'Turma 1',aliases:''})}).then(r=>r.status)`);
+check('Turma cadastrada para o teste',cls===200,String(cls));
+await clickAct('result-import-preview');await sleep(3000);
+found=await rows();console.log(found.join('\n'));
+check('Turma desconhecida aparece uma vez, para todas as linhas',found.length===1&&/todas as linhas \| TURMA \| turma um/.test(found[0]),found.join(' // '));
+await setFix('todas as linhas','TURMA','Turma 1');
+await ev(`document.querySelector('#modal-form button[type=submit]').click();1`);await sleep(3000);
+check('Conferência pronta',/Conferência antes de salvar/.test(await ev(`document.querySelector('#result-import-preview').innerText`)));
+await clickAct('result-import-confirm');await sleep(5000);
+check('Importação concluída com as correções',/Importação concluída/.test(await ev(`document.body.innerText`)));
+const saved=await ev(`fetch('/api/model-data/exam-edit-list',{credentials:'same-origin'}).then(r=>r.json()).then(d=>d.exams.filter(e=>e.title==='Simulado Correção').map(e=>e.linkedResults))`);
+check('3 resultados salvos no simulado corrigido',JSON.stringify(saved)==='[3]',JSON.stringify(saved));
+// 4) Notas TRI: nome que não bate com o simulado (divergência que não impede a importação).
+const tri=readFileSync(dirname(process.env.LOCAL_DB)+'/tri_names.b64','utf8').trim();
+await ev(`window.__tri=null;api('/api/model-data/tri-preview',{file:${JSON.stringify(tri)},filename:'tri.xlsx',activityKey:'simulado correcao',date:'2026-11-05'}).then(d=>window.__tri=d,e=>window.__tri={error:e.message});1`);await sleep(3000);
+check('Janela da conferência das notas',await ev(`document.querySelector('#dialog-title').textContent`)==='Divergências na conferência');
+const triRows=await rows();console.log(triRows.join('\n'));
+check('Nome sem aluno no simulado',triRows.length===1&&/Bruno Lma/.test(triRows[0]),triRows.join(' // '));
+check('Mensagem sem repetir a linha',!/^Linha/.test(await ev(`document.querySelector('.import-fix-message').innerText`)));
+check('Botão Seguir sem corrigir',await ev(`!!document.querySelector('[data-act="import-fix-skip"]')`));
+check('Aluno mais parecido sugerido primeiro',await ev(`(()=>{const sel=document.querySelector('[name=fix-0]');return sel.tagName==='SELECT'?sel.options[1].value:document.querySelector('#fix-list-0 option').value})()`)==='Bruno Lima');
+await setFix('linha 3','NOME','Bruno Lima');
+await ev(`document.querySelector('#modal-form button[type=submit]').click();1`);await sleep(3000);
+const triResult=await ev(`window.__tri`);
+check('Conferência das notas com os 2 alunos',triResult&&triResult.matched===2&&triResult.unmatched===0,JSON.stringify(triResult&&{m:triResult.matched,u:triResult.unmatched,e:triResult.error}));
+// Seguir sem corrigir devolve a conferência original.
+await ev(`window.__tri=null;api('/api/model-data/tri-preview',{file:${JSON.stringify(tri)}+'',filename:'tri.xlsx',activityKey:'simulado correcao',date:'2026-11-05'}).then(d=>window.__tri=d);1`);await sleep(2500);
+const reused=await ev(`!!window.__tri&&window.__tri.matched===2`);
+check('Mesmo arquivo reaproveita a correção',reused);
+const jsErrors=[...new Set(errors)];console.log('Falhas:',fails,'Erros JS:',jsErrors);process.exit(fails||jsErrors.length?1:0);
