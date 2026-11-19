@@ -5,8 +5,9 @@ Publicado em https://meucronograma.onrender.com (Render + banco Postgres no Neon
 
 ## Como o código está organizado
 
-O código deste repositório **é** o site: não há etapa de montagem. A publicação só instala as dependências
-(`build.sh`), roda as verificações e inicia o servidor (`start.sh`).
+O código deste repositório **é** o site: não há etapa de montagem. A publicação instala as dependências
+e roda as verificações (`build.sh`); depois só inicia o servidor (`start.sh`). Assim, se o servidor
+reiniciar (por exemplo, por falta de memória), ele volta em segundos.
 
 | Pasta / arquivo | O que tem |
 |---|---|
