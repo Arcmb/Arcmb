@@ -4865,3 +4865,169 @@ def handle(app,c,user,path,method,data,query,start,HTTPError):
             return app.reply(start,200,_v3712_class_detail(app,c,query))
         return app.reply(start,200,_v3712_student_detail(app,c,query))
     return _v3712_handle_base(app,c,user,path,method,data,query,start,HTTPError)
+
+# === RESULTS STORE V3.15.0 ===
+# O painel da gestão e a análise por turma deixam de reler do banco todos os resultados a
+# cada filtro: usam a cópia compacta compartilhada de results_store, refeita só quando os
+# dados mudam. A saída é a mesma de antes (v3.6 + máximos da v3.7 + filtros da v3.7.11).
+import results_store as _RS
+
+_v315_area_maps_builder=_v36_exam_area_maps
+
+def _v36_exam_area_maps(app,c):
+    return _RS.STORE.area_maps(app,c,_v315_area_maps_builder)[0]
+
+def _v315_active_students(app,c):
+    rows=app.db.execute(
+        c,"SELECT id,name,username FROM hmay_users WHERE role IN ('user','aluno') AND active=1"
+    ).fetchall()
+    return {row['id']:(row['name'],row['username']) for row in rows}
+
+_v315_row_accuracy_base=_v3712_row_accuracy
+
+def _v3712_row_accuracy(row,metadata,area_maps):
+    record=row.get('_rec') if isinstance(row,dict) else None
+    if record is None:
+        return _v315_row_accuracy_base(row,metadata,area_maps)
+    return _RS.STORE.accuracy(record,area_maps)
+
+def _v3712_rows(app,c,year=''):
+    class_lookup=_v36_class_lookup(app,c)
+    students=_v315_active_students(app,c)
+    rows=[]
+    for record in _RS.STORE.records(app,c):
+        names=students.get(record.user)
+        if names is None:
+            continue
+        if year and not record.date.startswith(year):
+            continue
+        meta=record.md
+        raw_class=F.text(meta.get('TURMA'),160) or 'Sem turma'
+        rows.append({
+            'user_id':record.user,'activity_key':record.key,'activity':record.activity,
+            'applied_on':record.date,'student_name':names[0],'username':names[1],
+            '_meta':meta,'_turma':class_lookup.get(F.norm(raw_class),raw_class),
+            '_token':_v3712_sim_token(record.key,record.date),'_rec':record,
+        })
+    rows.sort(key=lambda r:(r['applied_on'],r['activity'],r['student_name'] or ''))
+    return rows
+
+def _mgmt_dashboard_data(app,c,user,query):
+    if user.get('role') not in ('master','coordenador'):
+        raise ValueError('Painel gerencial exclusivo do Master e da coordenação.')
+    selected={
+        'year':_v3711_query_scalar(query,'year',4),
+        'turma':_v3711_query_scalar(query,'turma',160),
+        'activityKey':_v3711_query_scalar(query,'activityKey',250),
+        'date':_v3711_query_scalar(query,'date',40),
+    }
+    class_rows=_v36_class_rows(app,c,True)
+    class_lookup=_v36_class_lookup(app,c)
+    students=_v315_active_students(app,c)
+    area_maps=_v36_exam_area_maps(app,c)
+
+    participants=set();total_correct=0;total_valid=0
+    tri_general=[];redactions=[]
+    areas={key:{'correct':0,'valid':0,'tri':[]} for key in ('LC','CH','CN','MT')}
+    maxima={'LC':None,'CH':None,'CN':None,'MT':None,'RED':None}
+    simulations={};classes={};years=set();sim_options={};participations=0
+
+    for record in _RS.STORE.records(app,c):
+        if record.user not in students:
+            continue
+        if selected['year'] and not record.date.startswith(selected['year']):
+            continue
+        if selected['activityKey'] and record.key!=selected['activityKey']:
+            continue
+        if selected['date'] and record.date!=selected['date']:
+            continue
+        metadata=record.md
+        raw_class=F.text(metadata.get('TURMA'),160) or 'Sem turma'
+        canonical=class_lookup.get(F.norm(raw_class),raw_class)
+        if selected['turma'] and canonical!=selected['turma']:
+            continue
+        date=F.text(record.date,40)
+        if len(date)>=4:
+            years.add(date[:4])
+        sim_options[(record.key,date)]={'activityKey':record.key,'activity':record.activity,'date':date}
+        participants.add(record.user);participations+=1
+
+        accuracy=_RS.STORE.accuracy(record,area_maps)
+        row_correct=accuracy['ALL']['correct'];row_valid=accuracy['ALL']['valid']
+        total_correct+=row_correct;total_valid+=row_valid
+
+        scores=_tri_scores_from_metadata(metadata)
+        if scores.get('tri') is not None: tri_general.append(scores['tri'])
+        if scores.get('redaction') is not None: redactions.append(scores['redaction'])
+        for key,score_key in (('LC','lc'),('CH','ch'),('CN','cn'),('MT','mt'),('RED','redaction')):
+            value=scores.get(score_key)
+            if value is None:
+                continue
+            try:
+                number=float(value)
+            except Exception:
+                continue
+            if maxima[key] is None or number>maxima[key]:
+                maxima[key]=number
+
+        skey=(record.key,date)
+        sim=simulations.setdefault(skey,{'activityKey':record.key,'activity':record.activity,'date':date,'participants':set(),'correct':0,'valid':0,'triGeneral':[],'lc':[],'ch':[],'cn':[],'mt':[],'redaction':[]})
+        sim['participants'].add(record.user);sim['correct']+=row_correct;sim['valid']+=row_valid
+        cls=classes.setdefault(canonical,{'turma':canonical,'participants':set(),'correct':0,'valid':0,'triGeneral':[],'redaction':[]})
+        cls['participants'].add(record.user);cls['correct']+=row_correct;cls['valid']+=row_valid
+
+        for area_key in ('LC','CH','CN','MT'):
+            areas[area_key]['correct']+=accuracy[area_key]['correct']
+            areas[area_key]['valid']+=accuracy[area_key]['valid']
+        for key,value in (('triGeneral',scores.get('tri')),('lc',scores.get('lc')),('ch',scores.get('ch')),('cn',scores.get('cn')),('mt',scores.get('mt')),('redaction',scores.get('redaction'))):
+            if value is not None: sim[key].append(value)
+        if scores.get('tri') is not None: cls['triGeneral'].append(scores['tri'])
+        if scores.get('redaction') is not None: cls['redaction'].append(scores['redaction'])
+        for area_key,score_key in (('LC','lc'),('CH','ch'),('CN','cn'),('MT','mt')):
+            value=scores.get(score_key)
+            if value is not None: areas[area_key]['tri'].append(value)
+
+    sim_rows=[]
+    for sim in simulations.values():
+        sim_rows.append({
+            'activityKey':sim['activityKey'],'activity':sim['activity'],'date':sim['date'],
+            'participants':len(sim['participants']),'correct':sim['correct'],'valid':sim['valid'],
+            'accuracy':None if not sim['valid'] else round(100*sim['correct']/sim['valid'],2),
+            'triGeneral':_mgmt_mean(sim['triGeneral']),'lc':_mgmt_mean(sim['lc']),'ch':_mgmt_mean(sim['ch']),
+            'cn':_mgmt_mean(sim['cn']),'mt':_mgmt_mean(sim['mt']),'redaction':_mgmt_mean(sim['redaction']),
+        })
+    sim_rows.sort(key=lambda x:(x['date'],F.norm(x['activity'])),reverse=True)
+
+    class_summary=[]
+    for cls in classes.values():
+        class_summary.append({
+            'turma':cls['turma'],'participants':len(cls['participants']),'correct':cls['correct'],'valid':cls['valid'],
+            'accuracy':None if not cls['valid'] else round(100*cls['correct']/cls['valid'],2),
+            'triGeneral':_mgmt_mean(cls['triGeneral']),'redaction':_mgmt_mean(cls['redaction']),
+        })
+    class_summary.sort(key=lambda x:(-(x['participants'] or 0),F.norm(x['turma'])))
+
+    area_rows=[]
+    for key,label in (('LC','Linguagens'),('CH','Humanas'),('CN','Natureza'),('MT','Matemática')):
+        bucket=areas[key]
+        area_rows.append({
+            'key':key,'name':label,'correct':bucket['correct'],'valid':bucket['valid'],
+            'accuracy':None if not bucket['valid'] else round(100*bucket['correct']/bucket['valid'],2),
+            'tri':_mgmt_mean(bucket['tri']),'maxTri':maxima[key],
+        })
+    area_rows.append({'key':'RED','name':'Redação','correct':0,'valid':0,'accuracy':None,'tri':_mgmt_mean(redactions),'maxTri':maxima['RED']})
+
+    exam_rows=app.db.execute(c,'SELECT title,applied_on FROM hmay_exams ORDER BY applied_on,title').fetchall()
+    catalog={(F.norm(x['title']),F.text(x['applied_on'],40)) for x in exam_rows}
+    all_years=sorted({F.text(x['applied_on'],40)[:4] for x in exam_rows if len(F.text(x['applied_on'],40))>=4} | years,reverse=True)
+    options=sorted(sim_options.values(),key=lambda x:(x['date'],F.norm(x['activity'])),reverse=True)
+    return {
+        'filters':{'years':all_years,'turmas':[x['name'] for x in class_rows],'simulations':options,'selected':selected},
+        'kpis':{
+            'activeStudents':len(students),'participants':len(participants),'catalogSimulations':len(catalog),'maps':len(exam_rows),
+            'simulationsWithResults':len(sim_rows),'participations':participations,'correct':total_correct,'valid':total_valid,
+            'accuracy':None if not total_valid else round(100*total_correct/total_valid,2),
+            'triGeneral':_mgmt_mean(tri_general),'redaction':_mgmt_mean(redactions),
+        },
+        'areas':area_rows,'simulations':sim_rows,'classes':class_summary,'scaleMax':1000,
+    }

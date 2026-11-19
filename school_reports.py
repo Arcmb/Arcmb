@@ -5,10 +5,13 @@
 Coordenação nunca vê contas Especiais (mesma regra de require_target).
 """
 import json
+import unicodedata
 from collections import defaultdict
+from functools import lru_cache
 
 import planner as P
 import motor_profiles as MOTOR
+import results_store as RS
 
 TRI_AREAS = ('_tri_lc', '_tri_ch', '_tri_cn', '_tri_mt')
 
@@ -37,10 +40,16 @@ def _f(value):
         return None
 
 
-def _norm(value):
-    import unicodedata
-    text = unicodedata.normalize('NFKD', str(value or '')).encode('ascii', 'ignore').decode().lower()
+@lru_cache(maxsize=8192)
+def _norm_text(value):
+    text = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode().lower()
     return ' '.join(text.split())
+
+
+def _norm(value):
+    # Os relatórios normalizam os mesmos poucos nomes (disciplina, assunto, turma) milhões
+    # de vezes; o resultado de cada texto fica guardado.
+    return _norm_text(str(value or ''))
 
 
 class Data:
@@ -55,34 +64,74 @@ class Data:
         self.year = int(year) if year else None
         self.cutoff = f'{self.year}-01-01' if self.year else P.add(P.today(), -int(days))
         until = f'{self.year}-12-31' if self.year else '9999-12-31'
+        # Os resultados vêm da cópia compacta compartilhada (results_store): nada de reler o
+        # banco inteiro a cada relatório. "md" e "metrics" são compartilhados: não altere.
         self.rows = []
-        for r in app.db.execute(c, 'SELECT user_id,activity_key,activity,applied_on,metrics,metadata FROM hmay_performance WHERE applied_on>=? AND applied_on<=? ORDER BY applied_on',
-                                (self.cutoff, until)).fetchall():
-            if _r(r, 'user_id') in self.users:
-                md = _json(_r(r, 'metadata'), {})
-                self.rows.append({'user': _r(r, 'user_id'), 'key': str(_r(r, 'activity_key') or ''), 'activity': str(_r(r, 'activity') or ''),
-                                  'date': str(_r(r, 'applied_on') or ''), 'md': md, 'metrics': _r(r, 'metrics')})
+        for rec in RS.STORE.records(app, c):
+            if self.cutoff <= rec.date <= until and rec.user in self.users:
+                self.rows.append({'user': rec.user, 'key': rec.key, 'activity': rec.activity,
+                                  'date': rec.date, 'md': rec.md, 'metrics': rec})
         try:
             import model_data as MD
             self.lookup = MD._v36_class_lookup(app, c)
         except Exception:
             self.lookup = {}
         self._exams = {}
+        self._by_number = {}
 
     def turma(self, md):
         raw = str(md.get('TURMA') or md.get('Turma') or '').strip()
         return self.lookup.get(_norm(raw)) or self.lookup.get(raw.lower()) or raw or 'Sem turma'
 
     def metrics(self, row):
-        if not isinstance(row['metrics'], dict):
-            row['metrics'] = _json(row['metrics'], {})
-        return row['metrics']
+        """Respostas do resultado, montadas na hora e descartadas depois (não ficam guardadas)."""
+        value = row['metrics']
+        if isinstance(value, RS.Record):
+            return value.metrics()
+        return _json(value, {})
+
+    def states(self, uids, only=None, size=40):
+        """(uid, perfil em texto) em lotes, para não ter todos os perfis na memória de uma vez.
+
+        Com "only", só busca no banco os perfis desses alunos; os demais vêm como None.
+        """
+        uids = list(uids)
+        for start in range(0, len(uids), size):
+            chunk = uids[start:start + size]
+            wanted = [u for u in chunk if only is None or u in only]
+            found = {}
+            if wanted:
+                marks = ','.join('?' for _ in wanted)
+                for r in self.app.db.execute(self.c, f'SELECT user_id,profile FROM hmay_state WHERE user_id IN ({marks})', tuple(wanted)).fetchall():
+                    found[_r(r, 'user_id')] = _r(r, 'profile')
+            for uid in chunk:
+                yield uid, found.get(uid)
+            del found
 
     def exam(self, exam_id):
         if exam_id not in self._exams:
             er = self.app.db.execute(self.c, 'SELECT id,title,applied_on,color,items FROM hmay_exams WHERE id=?', (exam_id,)).fetchone()
             self._exams[exam_id] = {'id': exam_id, 'color': _r(er, 'color', ''), 'items': _json(_r(er, 'items'), [])} if er else None
         return self._exams[exam_id]
+
+    def items_by_number(self, ex, lang):
+        """Número da questão → item da prova, para o idioma do aluno. Montado uma vez por prova e idioma."""
+        key = (ex['id'], lang)
+        by_n = self._by_number.get(key)
+        if by_n is None:
+            by_n = {}
+            for it in ex['items']:
+                if not isinstance(it, dict):
+                    continue
+                il = _norm(it.get('language'))
+                if il and lang and il != lang:
+                    continue
+                try:
+                    by_n.setdefault(int(it.get('number') or 0), it)
+                except (TypeError, ValueError):
+                    continue
+            self._by_number[key] = by_n
+        return by_n
 
     def simulations(self):
         sims = {}
@@ -118,14 +167,11 @@ def attention(d, cfg):
     by_user = defaultdict(list)
     for row in d.rows:
         by_user[row['user']].append(row)
-    states = {}
-    for r in d.app.db.execute(d.c, 'SELECT user_id,profile FROM hmay_state').fetchall():
-        if _r(r, 'user_id') in d.users:
-            states[_r(r, 'user_id')] = _r(r, 'profile')
     logins = {_r(r, 'actor_id') for r in d.app.db.execute(d.c, "SELECT DISTINCT actor_id FROM hmay_events WHERE kind='login'").fetchall()}
     out = []
     turmas = d.latest_turma()
-    for uid, u in d.users.items():
+    for uid, raw_profile in d.states(d.users):
+        u = d.users[uid]
         rows = by_user.get(uid, [])
         complete = [(r['date'], _complete(r['md'])) for r in rows if _complete(r['md']) is not None]
         flags = []
@@ -135,7 +181,7 @@ def attention(d, cfg):
             flags.append(('queda', f'Caiu {abs(delta):.0f} pontos no último simulado'))
         if latest and rows and not any(r['key'] + '@@' + r['date'] == latest['token'] for r in rows):
             flags.append(('falta', f'Não fez o {latest["activity"]}'))
-        profile = _json(states.get(uid), {})
+        profile = _json(raw_profile, {})
         if rows:
             sig = MOTOR.signals_from_rows([(r['date'], r['md'], d.metrics(r)) for r in rows], profile, cfg)
             key, _ = MOTOR.classify(sig, cfg)
@@ -223,18 +269,7 @@ def topics(d, tokens=None, area=''):
         ex = d.exam(str(r['md'].get('_exam_id') or ''))
         if not ex:
             continue
-        lang = _norm(r['md'].get('L.E'))
-        by_n = {}
-        for it in ex['items']:
-            if not isinstance(it, dict):
-                continue
-            il = _norm(it.get('language'))
-            if il and lang and il != lang:
-                continue
-            try:
-                by_n.setdefault(int(it.get('number') or 0), it)
-            except (TypeError, ValueError):
-                continue
+        by_n = d.items_by_number(ex, _norm(r['md'].get('L.E')))
         t = d.turma(r['md'])
         turmas.add(t)
         for k, v in d.metrics(r).items():
@@ -296,14 +331,13 @@ def profiles(d, cfg):
     by_user = defaultdict(list)
     for r in d.rows:
         by_user[r['user']].append(r)
-    states = {_r(r, 'user_id'): _r(r, 'profile') for r in d.app.db.execute(d.c, 'SELECT user_id,profile FROM hmay_state').fetchall() if _r(r, 'user_id') in by_user}
     turmas = d.latest_turma()
     table = defaultdict(lambda: {k: 0 for k in MOTOR.PROFILE_KEYS + ('sem',)})
-    for uid in d.users:
+    for uid, raw_profile in d.states(d.users, only=by_user):
         rows = by_user.get(uid, [])
         key = None
         if rows:
-            sig = MOTOR.signals_from_rows([(r['date'], r['md'], d.metrics(r)) for r in rows], _json(states.get(uid), {}), cfg)
+            sig = MOTOR.signals_from_rows([(r['date'], r['md'], d.metrics(r)) for r in rows], _json(raw_profile, {}), cfg)
             key, _ = MOTOR.classify(sig, cfg)
         t = turmas.get(uid, 'Sem turma')
         table[t][key or 'sem'] += 1
@@ -326,18 +360,7 @@ def _answers(d, tokens=None, turma=''):
         ex = d.exam(str(r['md'].get('_exam_id') or ''))
         if not ex:
             continue
-        lang = _norm(r['md'].get('L.E'))
-        by_n = {}
-        for it in ex['items']:
-            if not isinstance(it, dict):
-                continue
-            il = _norm(it.get('language'))
-            if il and lang and il != lang:
-                continue
-            try:
-                by_n.setdefault(int(it.get('number') or 0), it)
-            except (TypeError, ValueError):
-                continue
+        by_n = d.items_by_number(ex, _norm(r['md'].get('L.E')))
         for k, v in d.metrics(r).items():
             if not k.startswith('questao:') or not isinstance(v, dict) or v.get('correct') not in (0, 1):
                 continue

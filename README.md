@@ -16,6 +16,7 @@ reiniciar (por exemplo, por falta de memória), ele volta em segundos.
 | `motor_profiles.py` | Perfis de foco (Base Sólida, Prática Ativa, Revisão Intensiva, Precisão). |
 | `model_data.py`, `unified.py`, `area_workbook.py`, `performance.py`, `selective.py`, `exams.py`, `exam_metadata.py`, `templates_v23.py` | Importação de resultados e mapas de simulado, TRI, desempenho e planilhas modelo. |
 | `school_reports.py` | Relatórios da escola (atenção, questões, assuntos, disciplinas, redação, perfis). |
+| `results_store.py` | Cópia compacta e compartilhada dos resultados, usada pelo painel da gestão, pela análise por turma, pelos relatórios da escola e pela visão geral do motor. É lida do banco uma vez e refeita só quando os dados mudam (ou a cada 10 min); os filtros trabalham em cima dela. Não leia `hmay_performance` inteira em novos relatórios: use `results_store.STORE.records(app, c)`. |
 | `disciplines_catalog.py` | Cadastro de disciplinas oficiais e conversão de nomes na importação. |
 | `provisional_access.py` | Senhas provisórias com validade. |
 | `routine_entries.py`, `questions_v23.py` | Rotina e questionário de mapeamento. |

@@ -314,10 +314,13 @@ def overview(app, c, user, cfg):
     marks = ','.join('?' for _ in roles)
     users = {(_row(r, 'id')): r for r in app.db.execute(c, f'SELECT id,role FROM hmay_users WHERE active=1 AND role IN ({marks})', roles).fetchall()}
     cutoff = P.add(P.today(), -int(cfg['thresholds']['windowDays']))
+    # Resultados da cópia compacta compartilhada (results_store); as respostas de cada aluno
+    # só são montadas na hora de calcular os sinais dele.
+    import results_store as RS
     perf = {}
-    for r in app.db.execute(c, 'SELECT user_id,applied_on,metadata,metrics FROM hmay_performance WHERE applied_on>=?', (cutoff,)).fetchall():
-        if _row(r, 'user_id') in users:
-            perf.setdefault(_row(r, 'user_id'), []).append((_row(r, 'applied_on'), _row(r, 'metadata'), _row(r, 'metrics')))
+    for rec in RS.STORE.records(app, c):
+        if rec.date >= cutoff and rec.user in users:
+            perf.setdefault(rec.user, []).append(rec)
     states = {_row(r, 'user_id'): _json(_row(r, 'data'), {}) for r in app.db.execute(c, 'SELECT user_id,data FROM hmay_motor_profile').fetchall()}
     counts = {k: {'suggested': 0, 'current': 0, 'manual': 0, 'provisional': 0, 'media': [], 'accuracy': [], 'recurrence': []} for k in PROFILE_KEYS}
     without = 0
@@ -326,7 +329,7 @@ def overview(app, c, user, cfg):
             without += 1
             continue
         srow = app.db.execute(c, 'SELECT profile FROM hmay_state WHERE user_id=?', (uid,)).fetchone()
-        sig = signals_from_rows(perf[uid], _json(_row(srow, 'profile'), {}) if srow else {}, cfg)
+        sig = signals_from_rows([(rec.date, rec.md, rec.metrics()) for rec in perf[uid]], _json(_row(srow, 'profile'), {}) if srow else {}, cfg)
         key, _ = classify(sig, cfg)
         if not key:
             without += 1
