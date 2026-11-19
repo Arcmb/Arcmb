@@ -226,10 +226,11 @@ async function loadExamMapList(seq){
    const attrs='data-id="'+esc(exam.id)+'"';
    const edit=button(exam.canEdit?'Editar dados':'Editar data','exam-metadata-edit','secondary',attrs);
    const complement=exam.canEdit?button('Complementar mapa','exam-edit','secondary',attrs):'';
+   const remove=exam.canEdit?button('Excluir…','exam-delete','danger-button',attrs+' aria-label="Excluir notas, respostas ou gabarito de '+esc(exam.title)+' · '+esc(exam.color)+'"'):'';
    return '<div class="item"><div><strong>'+esc(exam.title)+'</strong><p>'+
      br(exam.applied_on)+' · '+esc(exam.color)+' · '+esc(exam.area||'Sem área padrão')+
      ' · '+Number(exam.linkedResults)+' resultado(s) vinculado(s) · versão '+Number(exam.version)+
-     '</p></div><div class="actions">'+edit+complement+'</div></div>';
+     '</p></div><div class="actions">'+edit+complement+remove+'</div></div>';
   }));
  }catch(error){
   const box=$('#exam-list');
@@ -275,6 +276,84 @@ acts['exam-metadata-edit']=el=>{
   for(const key of ['title','color','area'])fields.namedItem(key).disabled=true;
  }
 };
+
+// === EXAM DELETE V3.15.0 ===
+// Exclui o que foi enviado errado: notas (TRI, redação, ranking), respostas dos alunos e gabarito.
+let examDeletePreview=null;
+function examDeleteCount(n,one,many){n=Number(n)||0;return n.toLocaleString('pt-BR')+' '+(n===1?one:many);}
+function examDeleteScope(){const f=$('#modal-form');return f&&f.elements.namedItem('scope')&&f.querySelector('input[name=scope]:checked')?.value==='simulado'?'simulado':'caderno';}
+function examDeleteRefresh(){
+ const f=$('#modal-form');
+ if(!f||!examDeletePreview||!f.dataset.examDelete)return;
+ const sc=examDeletePreview.scopes[examDeleteScope()];
+ const el=f.elements;
+ const text=(id,html)=>{const node=f.querySelector('[data-exam-delete-text="'+id+'"]');if(node)node.innerHTML=html;};
+ text('scores',sc.withScores?examDeleteCount(sc.withScores,'resultado com notas','resultados com notas')+'. As respostas continuam.':'Nenhuma nota importada neste alcance.');
+ text('answers',sc.results?examDeleteCount(sc.results,'resultado','resultados')+' de '+examDeleteCount(sc.students,'aluno','alunos')+'. As notas desses resultados saem junto, e as revisões geradas pelos erros deste simulado são retiradas do cronograma dos alunos.':'Nenhuma resposta de aluno neste alcance.');
+ text('map',examDeleteCount(sc.exams,'caderno','cadernos')+' ('+sc.colors.map(esc).join(', ')+').'+(sc.results?' Como há respostas ligadas, só pode sair junto com elas.':''));
+ el.scores.disabled=!sc.withScores&&!el.answers.checked;
+ el.answers.disabled=!sc.results;
+ if(!sc.results)el.answers.checked=false;
+ if(el.map.checked&&sc.results)el.answers.checked=true;
+ if(el.answers.checked){el.scores.checked=Boolean(sc.withScores);el.scores.disabled=true;}
+ else if(!sc.withScores){el.scores.checked=false;}
+ const parts=[];
+ if(el.scores.checked&&!el.answers.checked)parts.push('as notas de '+examDeleteCount(sc.withScores,'resultado','resultados'));
+ if(el.answers.checked)parts.push(examDeleteCount(sc.results,'resultado','resultados')+' com respostas'+(sc.withScores?' e notas':''));
+ if(el.map.checked)parts.push('o gabarito de '+examDeleteCount(sc.exams,'caderno','cadernos'));
+ text('summary',parts.length?'<strong>Será excluído definitivamente:</strong> '+parts.join(', ')+'.':'Marque o que deve ser excluído.');
+}
+acts['exam-delete']=async el=>{
+ const exam=examCatalogue.find(row=>row.id===el.dataset.id);
+ if(!exam)throw new Error('Atualize a lista para localizar este caderno.');
+ const preview=await api('/api/model-data/exam-delete-preview',{examId:exam.id});
+ examDeletePreview=preview;
+ const many=preview.scopes.simulado.exams>1;
+ const scope=many?'<fieldset class="exam-delete-scope"><legend>Alcance</legend>'+
+  '<label class="check"><input type="radio" name="scope" value="caderno" checked> Só o caderno '+esc(preview.color)+'</label>'+
+  '<label class="check"><input type="radio" name="scope" value="simulado"> Todo o simulado ('+preview.scopes.simulado.colors.map(esc).join(', ')+')</label></fieldset>':'';
+ const option=(name,label)=>'<label class="check exam-delete-option"><input type="checkbox" name="'+name+'"><span><strong>'+label+'</strong><small data-exam-delete-text="'+name+'"></small></span></label>';
+ const body='<p><strong>'+esc(preview.title)+'</strong> · '+br(preview.date)+(many?'':' · '+esc(preview.color))+'</p>'+
+  '<p class="micro">Use para desfazer um envio errado. Depois de excluir, você pode importar o arquivo correto normalmente.</p>'+scope+
+  '<fieldset class="exam-delete-scope"><legend>O que excluir</legend>'+
+  option('scores','Notas e acertos (TRI, redação e ranking)')+
+  option('answers','Respostas dos alunos')+
+  option('map','Gabarito e mapa de questões')+'</fieldset>'+
+  '<div class="notice danger" data-exam-delete-text="summary"></div>'+
+  '<label>Para confirmar, digite '+esc(preview.confirmation)+'<input name="confirmation" required autocomplete="off" pattern="\\s*[Ee][Xx][Cc][Ll][Uu][Ii][Rr]\\s*"></label>';
+ modal('Excluir dados do simulado','<form id="modal-form" data-exam-delete="1">'+body+'<p id="modal-error" class="form-error" role="alert"></p><div class="actions"><button class="danger-button" type="submit">Excluir definitivamente</button></div></form>',async form=>{
+  const el=form.elements;
+  const whole=examDeleteScope()==='simulado';
+  const sc=examDeletePreview.scopes[whole?'simulado':'caderno'];
+  const data={examId:exam.id,whole,scores:el.scores.checked,answers:el.answers.checked,map:el.map.checked,
+   confirmation:el.confirmation.value,expected:{exams:sc.exams,results:sc.results,withScores:sc.withScores}};
+  if(!data.scores&&!data.answers&&!data.map)throw new Error('Marque o que deve ser excluído.');
+  let result;
+  try{result=await api('/api/model-data/exam-delete',data);}
+  catch(error){await loadExamMapList(++examSeq);throw error;}
+  if(result.deletedExams&&examDraft){examDraft=null;const editor=$('#exam-editor');if(editor)editor.innerHTML='';}
+  if(typeof resultExportSimulations!=='undefined')resultExportSimulations=null;
+  if(typeof studentSummaryCache!=='undefined')studentSummaryCache.clear();
+  if(typeof managementDashboardCache!=='undefined')managementDashboardCache=null;
+  if(typeof managementClassAnalyticsCache!=='undefined'){
+   managementClassAnalyticsCache=null;
+   managementClassDetailCache.clear();
+   managementStudentDetailCache.clear();
+  }
+  if(typeof triCoverage!=='undefined')triCoverage=null;
+  examDeletePreview=null;
+  if(typeof S!=='undefined'&&S)status('Salvo no servidor · versão '+S.version);
+  await loadExamMapList(++examSeq);
+  const done=[];
+  if(result.deletedResults)done.push(examDeleteCount(result.deletedResults,'resultado excluído','resultados excluídos'));
+  else if(result.clearedScores)done.push('notas retiradas de '+examDeleteCount(result.clearedScores,'resultado','resultados'));
+  if(result.deletedExams)done.push(examDeleteCount(result.deletedExams,'gabarito excluído','gabaritos excluídos'));
+  if(result.reviews&&result.reviews.students)done.push('revisões ajustadas para '+examDeleteCount(result.reviews.students,'aluno','alunos'));
+  toast('Concluído: '+(done.join(' · ')||'nada a excluir')+'.');
+ });
+ examDeleteRefresh();
+};
+document.addEventListener('change',e=>{if(e.target.closest&&e.target.closest('[data-exam-delete]'))examDeleteRefresh();});
 
 // === MANAGEMENT DASHBOARD V3.5 ===
 let managementDashboardCache=null;

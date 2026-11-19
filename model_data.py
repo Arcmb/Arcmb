@@ -5031,3 +5031,15 @@ def _mgmt_dashboard_data(app,c,user,query):
         },
         'areas':area_rows,'simulations':sim_rows,'classes':class_summary,'scaleMax':1000,
     }
+
+# === EXAM DELETE V3.15.0 ===
+_v315_delete_handle_base=handle
+
+def handle(app,c,user,path,method,data,query,start,HTTPError):
+    if path in ('/api/model-data/exam-delete-preview','/api/model-data/exam-delete'):
+        if method!='POST':
+            raise HTTPError(405,'Use POST para excluir dados do simulado.')
+        if path.endswith('/exam-delete-preview'):
+            return app.reply(start,200,_exam_metadata.delete_preview(app,c,user,data,HTTPError))
+        return app.reply(start,200,_exam_metadata.delete(app,c,user,data,HTTPError))
+    return _v315_delete_handle_base(app,c,user,path,method,data,query,start,HTTPError)

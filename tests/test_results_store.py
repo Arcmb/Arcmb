@@ -123,3 +123,24 @@ class StoreRefreshTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SeparateDatabasesTest(unittest.TestCase):
+    def test_copy_is_never_shared_between_databases(self):
+        store = RS.Store()
+        seen = []
+        for name in ('a', 'b'):
+            tmp = tempfile.TemporaryDirectory()
+            self.addCleanup(tmp.cleanup)
+            env = dict(os.environ, LOCAL_TEST='1', LOCAL_DB=str(Path(tmp.name) / 'db.sqlite3'),
+                       SECRET_KEY='x' * 64, MASTER_PASSWORD='senha-local-123', ALLOWED_HOSTS='meucronograma.onrender.com')
+            app = App(env)
+            app.db.initialize(app.owner, env['MASTER_PASSWORD'], '')
+            with app.db.connection(write=True) as c:
+                app.db.execute(c, "INSERT INTO hmay_users VALUES ('u1','aluno1','Aluno','x','aluno',1,0,'t')", ())
+                # Mesma contagem e mesma data de alteração nos dois bancos.
+                app.db.execute(c, 'INSERT INTO hmay_performance VALUES (?,?,?,?,?,?,?,?,?)',
+                               ('p1', 'u1', 'k', 'Simulado ' + name, '2026-01-01', '{}', '{}', 1, '2026-01-01T00:00:00'))
+            with app.db.connection() as c:
+                seen.append(store.records(app, c)[0].activity)
+        self.assertEqual(seen, ['Simulado a', 'Simulado b'])

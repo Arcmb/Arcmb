@@ -18,6 +18,7 @@ reiniciar (por exemplo, por falta de memória), ele volta em segundos.
 | `school_reports.py` | Relatórios da escola (atenção, questões, assuntos, disciplinas, redação, perfis). |
 | `results_store.py` | Cópia compacta e compartilhada dos resultados, usada pelo painel da gestão, pela análise por turma, pelos relatórios da escola e pela visão geral do motor. É lida do banco uma vez e refeita só quando os dados mudam (ou a cada 10 min); os filtros trabalham em cima dela. Não leia `hmay_performance` inteira em novos relatórios: use `results_store.STORE.records(app, c)`. |
 | `disciplines_catalog.py` | Cadastro de disciplinas oficiais e conversão de nomes na importação. |
+| `exam_metadata.py` | Edição e **exclusão** dos cadernos (Mapa de questões → Excluir…): notas (TRI, redação, ranking), respostas dos alunos e gabarito, de um caderno ou do simulado inteiro, numa única transação. Ao excluir respostas, tira do cronograma dos alunos as revisões geradas pelos erros (pausa em vez de excluir quando já há histórico). |
 | `provisional_access.py` | Senhas provisórias com validade. |
 | `routine_entries.py`, `questions_v23.py` | Rotina e questionário de mapeamento. |
 | `site_version.py` | Versão exibida no rodapé (mude com `python tools/set_version.py X.Y.Z`). |

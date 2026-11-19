@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 TMP="$(mktemp -d)"
 export ENEM_XLSX="$TMP/itens_enem.xlsx" LOCAL_TEST=1 LOCAL_DB="$TMP/browser.sqlite3" SECRET_KEY="$(python3 -c "print('k'*64)")" MASTER_PASSWORD=TEST_master_13579 ALLOWED_HOSTS=localhost,127.0.0.1 PORT=8765
 python3 "$ROOT/tests/browser/seed.py" "$ROOT" "$LOCAL_DB" >/dev/null || exit 1
-(cd "$ROOT" && python3 webapp.py >"$TMP/server.log" 2>&1) & SERVER=$!
+(cd "$ROOT" && exec python3 webapp.py >"$TMP/server.log" 2>&1) & SERVER=$!
 google-chrome --headless=new --no-sandbox --remote-debugging-port=9222 --window-size=1400,1000 --user-data-dir="$TMP/chrome" about:blank >"$TMP/chrome.log" 2>&1 & CHROME=$!
 trap 'kill $SERVER $CHROME 2>/dev/null; rm -rf "$TMP"' EXIT
 sleep 5

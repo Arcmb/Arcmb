@@ -171,14 +171,19 @@ class Store:
     # ------------------------------------------------------------ carimbos
 
     @staticmethod
-    def _perf_stamp(app, c):
-        row = app.db.execute(c, "SELECT COUNT(*) AS n,COALESCE(MAX(updated_at),'') AS stamp FROM hmay_performance").fetchone()
-        return f"{_get(row, 'n')}:{_get(row, 'stamp')}"
+    def _database(app):
+        # Identifica o banco: a cópia nunca é reaproveitada para outro banco (ex.: testes).
+        return str(getattr(app.db, 'local_path', None) or getattr(app.db, 'url', '') or id(app.db))
 
-    @staticmethod
-    def _exams_stamp(app, c):
+    @classmethod
+    def _perf_stamp(cls, app, c):
+        row = app.db.execute(c, "SELECT COUNT(*) AS n,COALESCE(MAX(updated_at),'') AS stamp FROM hmay_performance").fetchone()
+        return f"{cls._database(app)}|{_get(row, 'n')}:{_get(row, 'stamp')}"
+
+    @classmethod
+    def _exams_stamp(cls, app, c):
         row = app.db.execute(c, "SELECT COUNT(*) AS n,COALESCE(MAX(updated_at),'') AS stamp FROM hmay_exams").fetchone()
-        return f"{_get(row, 'n')}:{_get(row, 'stamp')}"
+        return f"{cls._database(app)}|{_get(row, 'n')}:{_get(row, 'stamp')}"
 
     def invalidate(self):
         with self._lock:
