@@ -4988,6 +4988,10 @@ def handle(app,c,user,path,method,data,query,start,HTTPError):
             raise HTTPError(403,'Acesso reservado ao Master e à coordenação.')
         if method!='GET':
             raise HTTPError(405,'Use GET para consultar a análise de turmas.')
+        year=app.overview_year(c,user)
+        query={**query,'year':year}
+        if path.endswith('management-simulation-students') and not _v3712_query_scalar(query,'date',40).startswith(year+'-'):
+            raise HTTPError(400,'Selecione um simulado do ano letivo ativo.')
         if path.endswith('management-class-analytics'):
             return app.reply(start,200,_v3712_class_analytics(app,c,query))
         if path.endswith('management-class-detail'):
@@ -5020,9 +5024,18 @@ def _v3712_row_accuracy(row,metadata,area_maps):
         return _v315_row_accuracy_base(row,metadata,area_maps)
     return _RS.STORE.accuracy(record,area_maps)
 
+def _overview_students(app,c,year):
+    rows=app.db.execute(c,'''SELECT u.id,u.name,u.username FROM hmay_users u
+        LEFT JOIN hmay_academic_year y ON y.user_id=u.id
+        WHERE u.role IN ('user','aluno') AND u.active=1 AND
+        (COALESCE(y.active_year,CAST(substr(u.created_at,1,4) AS INTEGER))=?
+        OR EXISTS (SELECT 1 FROM hmay_academic_cycles cy WHERE cy.user_id=u.id AND cy.academic_year=?))''',
+        (int(year),int(year))).fetchall()
+    return {row['id']:(row['name'],row['username']) for row in rows}
+
 def _v3712_rows(app,c,year=''):
     class_lookup=_v36_class_lookup(app,c)
-    students=_v315_active_students(app,c)
+    students=_overview_students(app,c,year) if year else _v315_active_students(app,c)
     rows=[]
     for record in _RS.STORE.records(app,c):
         names=students.get(record.user)
@@ -5045,39 +5058,38 @@ def _mgmt_dashboard_data(app,c,user,query):
     if user.get('role') not in ('master','coordenador'):
         raise ValueError('Painel gerencial exclusivo do Master e da coordenação.')
     selected={
-        'year':_v3711_query_scalar(query,'year',4),
+        'year':app.overview_year(c,user),
         'turma':_v3711_query_scalar(query,'turma',160),
         'activityKey':_v3711_query_scalar(query,'activityKey',250),
         'date':_v3711_query_scalar(query,'date',40),
     }
-    class_rows=_v36_class_rows(app,c,True)
+    year_classes=set()
     class_lookup=_v36_class_lookup(app,c)
-    students=_v315_active_students(app,c)
+    students=_overview_students(app,c,selected['year'])
     area_maps=_v36_exam_area_maps(app,c)
 
     participants=set();total_correct=0;total_valid=0
     tri_general=[];redactions=[]
     areas={key:{'correct':0,'valid':0,'tri':[]} for key in ('LC','CH','CN','MT')}
     maxima={'LC':None,'CH':None,'CN':None,'MT':None,'RED':None}
-    simulations={};classes={};years=set();sim_options={};participations=0
+    simulations={};classes={};sim_options={};participations=0
 
     for record in _RS.STORE.records(app,c):
         if record.user not in students:
             continue
         if selected['year'] and not record.date.startswith(selected['year']):
             continue
+        class_name=F.text(record.md.get('TURMA'),160) or 'Sem turma'
+        canonical=class_lookup.get(F.norm(class_name),class_name)
+        year_classes.add(canonical)
         if selected['activityKey'] and record.key!=selected['activityKey']:
             continue
         if selected['date'] and record.date!=selected['date']:
             continue
         metadata=record.md
-        raw_class=F.text(metadata.get('TURMA'),160) or 'Sem turma'
-        canonical=class_lookup.get(F.norm(raw_class),raw_class)
         if selected['turma'] and canonical!=selected['turma']:
             continue
         date=F.text(record.date,40)
-        if len(date)>=4:
-            years.add(date[:4])
         sim_options[(record.key,date)]={'activityKey':record.key,'activity':record.activity,'date':date}
         participants.add(record.user);participations+=1
 
@@ -5146,12 +5158,11 @@ def _mgmt_dashboard_data(app,c,user,query):
         })
     area_rows.append({'key':'RED','name':'Redação','correct':0,'valid':0,'accuracy':None,'tri':_mgmt_mean(redactions),'maxTri':maxima['RED']})
 
-    exam_rows=app.db.execute(c,'SELECT title,applied_on FROM hmay_exams ORDER BY applied_on,title').fetchall()
+    exam_rows=app.db.execute(c,'SELECT title,applied_on FROM hmay_exams WHERE applied_on LIKE ? ORDER BY applied_on,title',(selected['year']+'%',)).fetchall()
     catalog={(F.norm(x['title']),F.text(x['applied_on'],40)) for x in exam_rows}
-    all_years=sorted({F.text(x['applied_on'],40)[:4] for x in exam_rows if len(F.text(x['applied_on'],40))>=4} | years,reverse=True)
     options=sorted(sim_options.values(),key=lambda x:(x['date'],F.norm(x['activity'])),reverse=True)
     return {
-        'filters':{'years':all_years,'turmas':[x['name'] for x in class_rows],'simulations':options,'selected':selected},
+        'filters':{'years':[selected['year']],'turmas':sorted(year_classes),'simulations':options,'selected':selected},
         'kpis':{
             'activeStudents':len(students),'participants':len(participants),'catalogSimulations':len(catalog),'maps':len(exam_rows),
             'simulationsWithResults':len(sim_rows),'participations':participations,'correct':total_correct,'valid':total_valid,
