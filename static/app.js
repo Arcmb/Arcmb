@@ -74,13 +74,14 @@ let directoryPage=0,directoryHistory=false;
 const isStudentAccount=a=>a.role==='user'||a.role==='aluno';
 function directoryRow(a){
  const attributes=`data-id="${esc(a.id)}"`;
-  if(ME.role==='coordenador')return `<div class="item"><div><strong>${esc(a.name)}</strong><p>${esc(a.username)}</p></div>${button('Abrir e ajustar rotina','open-account','primary',attributes)}</div>`;
+  const history=isStudentAccount(a)&&a.registeredForYear!==false&&(!a.activeAcademicYear||a.activeAcademicYear===accountAcademicYear)?button('Vincular resultado de '+(accountAcademicYear-1),'link-old-result','secondary',attributes):'';
+  if(ME.role==='coordenador')return `<div class="item"><div><strong>${esc(a.name)}</strong><p>${esc(a.username)}</p></div>${history}${button('Abrir e ajustar rotina','open-account','primary',attributes)}</div>`;
   const historical=isStudentAccount(a)&&!a.registeredForYear;
   const enroll=historical&&a.active&&a.activeAcademicYear<accountAcademicYear
    ?button('Matricular em '+accountAcademicYear,'enroll-account','primary',attributes):'';
   return `<div data-directory-role="${esc(isStudentAccount(a)?'aluno':a.role)}" data-directory-name="${esc(a.name+' '+a.username)}"><div class="item"><div class="item-main"><strong>${esc(a.name)} ${tag(roleLabel(a.role))}</strong>
   <p>Login: ${esc(a.username)} · ${a.active?'Ativo':'Desativado'} · ${!a.passwordSet?'Senha inicial ainda não definida':a.must_change?'Troca de senha obrigatória':'Senha definida'}${historical?' · Fora da lista de '+accountAcademicYear:''}</p></div>
-  <div class="item-actions">${enroll}${historical?'':button('Abrir rotina','open-account','primary',attributes)}${button('Editar acesso','edit-account','secondary',attributes)}${button(a.id===ME.id?'Minha senha':'Redefinir senha','directory-password','secondary',attributes)}</div></div></div>`;
+  <div class="item-actions">${history}${enroll}${historical?'':button('Abrir rotina','open-account','primary',attributes)}${button('Editar acesso','edit-account','secondary',attributes)}${button(a.id===ME.id?'Minha senha':'Redefinir senha','directory-password','secondary',attributes)}</div></div></div>`;
 
 }
 function directoryResults(){
@@ -130,7 +131,33 @@ function fixedForm(id){let f=P.fixed.find(x=>x.id===id)||{title:'',category:'Pes
 function feedbackForm(sessionId,contentId){const x=P.sessions.find(x=>x.id===sessionId),c=P.contents.find(c=>c.id===(x?.contentId||contentId));modalForm('Registrar execução e verificação',`<div class="notice"><strong>${esc(x?.title||c?.title)}</strong><p>Tente recuperar o conhecimento sem consulta antes de conferir o material.</p></div><div class="form-grid">${select('Resultado','status','done',[['done','Concluí'],['partial','Fiz parcialmente'],['missed','Não consegui fazer']])}${input('Data da execução','date',S.serverDate,'date',`required max="${S.serverDate}"`)}${input('Tempo utilizado (min)','actualMin',x?x.end-x.start:c?.reviewMinutes||20,'number','min="0" max="720" required')}${input('Questões verificadas','total',0,'number','min="0" max="500" required')}${input('Acertos','correct',0,'number','min="0" max="500" required')}${select('Ajuda ou consulta','help','none',[['none','Resolvi sem ajuda'],['some','Precisei de alguma ajuda'],['full','Precisei consultar / ajuda completa']])}${select('Confiança nas respostas','confidence','medium',[['low','Baixa'],['medium','Média'],['high','Alta']])}${select('Dificuldade percebida','perceivedDifficulty','3',[['1','Muito fácil'],['2','Fácil'],['3','Moderada'],['4','Difícil'],['5','Muito difícil']])}${select('Fez atendimento de monitoria?','monitoring','no',[['no','Não'],['yes','Sim']])}${select('Obstáculo, quando houver','reason','',[['','Nenhum / não informar'],['time','Falta de tempo'],['tired','Cansaço'],['difficulty','Dificuldade de conteúdo'],['distraction','Distração'],['unclear','Tarefa pouco clara'],['unexpected','Imprevisto'],['other','Outro']])}</div><h3>Como você revisou?</h3><div class="check-list"><label><input type="checkbox" name="method_questoes"> Questões</label><label><input type="checkbox" name="method_correcao"> Refiz questões erradas / correção</label><label><input type="checkbox" name="method_resumo"> Resumo ou fichamento</label><label><input type="checkbox" name="method_flashcards"> Flashcards</label><label><input type="checkbox" name="method_releitura"> Releitura</label><label><input type="checkbox" name="method_videoaula"> Videoaula</label><label><input type="checkbox" name="method_explicacao"> Expliquei o conteúdo</label><label><input type="checkbox" name="method_mapa"> Mapa mental</label><label><input type="checkbox" name="method_monitoria"> Monitoria</label><label><input type="checkbox" name="method_outro"> Outro</label></div><div class="check-list"><label><input type="checkbox" name="needsAttention"> Este conteúdo precisa de mais atenção</label></div><div id="follow-up"></div>${input('Observação sobre a monitoria','monitoringNotes','','text','maxlength="500"')}${area('Descreva como você revisou','reviewDescription','')}${area('Outras observações','notes','')}`,async(f,d)=>{if(+d.correct>+d.total)throw new Error('Os acertos não podem superar o total.');const methods=['questoes','correcao','resumo','flashcards','releitura','videoaula','explicacao','mapa','monitoria','outro'].filter(k=>f.elements['method_'+k]?.checked);await save('feedback',{...d,sessionId:sessionId||'',contentId:contentId||'',actualMin:+d.actualMin,total:+d.total,correct:+d.correct,perceivedDifficulty:+d.perceivedDifficulty,monitoring:d.monitoring==='yes',needsAttention:!!f.elements.needsAttention?.checked,methods});});}
 const optionNames={exception:'Foi pontual',recurring:'Vai se repetir',duration:'A tarefa demorou mais',instruction:'Não entendi a orientação',current:'Não consegui aplicar o conteúdo',prerequisite:'Faltou um conhecimento anterior',phone:'Celular / notificações',environment:'Ambiente / pessoas',long:'Bloco longo',no:'Não',yes:'Sim',review:'Rever a tarefa',support:'Pedir apoio'};
 function followup(){const f=$('#modal-form');if(!f?.elements.reason)return;let reason=f.elements.reason.value;const rule=S.advice[reason];$('#follow-up').innerHTML=rule?select(esc(rule[0]),'detail','',Object.keys(rule[1]).map(k=>[k,optionNames[k]||k]))+'<div class="notice" id="advice-text"></div>':'';if(rule)$('#advice-text').textContent=Object.values(rule[1])[0];}
-function accountForm(id){const a=accounts.find(a=>a.id===id)||{username:'',name:'',active:1};modalForm(id?'Editar acesso':'Criar conta',`<div class="form-grid">${input('Nome','name',a.name,'text','required maxlength="150"')}${input('Login','username',a.username,'text','required minlength="3" maxlength="40" autocapitalize="none" '+(id?'readonly':''))}${a.username==='arcmb'?'<p>O Master proprietário altera sua própria senha em “Minha senha”.</p>':input(id?'Nova senha provisória (deixe vazia para manter)':'Senha provisória','password','','password',`minlength="8" maxlength="128" autocomplete="new-password" ${id?'':'required'}`)}${a.username==='arcmb'?'<p>Perfil: Master permanente.</p>':select('Perfil de acesso','role',a.role==='user'?'aluno':a.role||'aluno',[['aluno','Aluno — somente a própria conta'],['coordenador','Coordenador — consulta e edição dos alunos'],['especial','Especial — titular e Master'],['master','Master — acesso completo']])}${check('Conta ativa','active',!!a.active)}</div><p class="micro">Ao definir uma senha, os acessos anteriores serão encerrados e o usuário deverá trocá-la no próximo login. A senha não será exibida depois de salva.</p>${a.canDelete?`<button type="button" class="secondary" data-act="delete-account" data-id="${esc(a.id)}">Excluir cadastro</button>`:''}`,async(f,d)=>{await api('/api/accounts',{...d,id,active:f.elements.active.checked});await refreshAccounts();await load();toast('Conta atualizada.');});}
+async function chooseHistory(name,year,matches){
+ for(const source of matches){
+  const message='Já existe um cadastro de '+name+' em '+year+' (referência '+source.reference+', '+source.results+' resultado(s)). Vincular o desempenho de '+year+' a este aluno?';
+  const dialog=document.createElement('dialog');
+  const description=document.createElement('p');
+  description.textContent=message;
+  dialog.setAttribute('aria-label','Vincular desempenho anterior');
+  dialog.append(description);
+  const decision=new Promise(resolve=>{
+   for(const [label,value] of [['Não, manter separado','no'],['Sim, vincular','yes']]){
+    const choice=document.createElement('button');choice.type='button';choice.textContent=label;
+    choice.addEventListener('click',()=>dialog.close(value));dialog.append(choice);
+   }
+   dialog.addEventListener('close',()=>resolve(dialog.returnValue),{once:true});
+  });
+  document.body.append(dialog);dialog.showModal();
+  const answer=await decision;dialog.remove();
+  if(!answer)throw new Error('Escolha de vínculo cancelada.');
+  if(answer==='yes')return {historySource:source.id,historyYear:year};
+ }
+ return {};
+}
+async function historyForNewStudent(name){
+ const previous=await api('/api/history/candidates?name='+encodeURIComponent(name));
+ return chooseHistory(name,previous.year,previous.accounts);
+}
+function accountForm(id){const a=accounts.find(a=>a.id===id)||{username:'',name:'',active:1};modalForm(id?'Editar acesso':'Criar conta',`<div class="form-grid">${input('Nome','name',a.name,'text','required maxlength="150"')}${input('Login','username',a.username,'text','required minlength="3" maxlength="40" autocapitalize="none" '+(id?'readonly':''))}${a.username==='arcmb'?'<p>O Master proprietário altera sua própria senha em “Minha senha”.</p>':input(id?'Nova senha provisória (deixe vazia para manter)':'Senha provisória','password','','password',`minlength="8" maxlength="128" autocomplete="new-password" ${id?'':'required'}`)}${a.username==='arcmb'?'<p>Perfil: Master permanente.</p>':select('Perfil de acesso','role',a.role==='user'?'aluno':a.role||'aluno',[['aluno','Aluno — somente a própria conta'],['coordenador','Coordenador — consulta e edição dos alunos'],['especial','Especial — titular e Master'],['master','Master — acesso completo']])}${check('Conta ativa','active',!!a.active)}</div><p class="micro">Ao definir uma senha, os acessos anteriores serão encerrados e o usuário deverá trocá-la no próximo login. A senha não será exibida depois de salva.</p>${a.canDelete?`<button type="button" class="secondary" data-act="delete-account" data-id="${esc(a.id)}">Excluir cadastro</button>`:''}`,async(f,d)=>{const history=!id&&['aluno','user'].includes(d.role)?await historyForNewStudent(d.name):{};await api('/api/accounts',{...d,...history,id,active:f.elements.active.checked});await refreshAccounts();await load();toast('Conta atualizada.');});}
 async function refreshAccounts(){if(!manages())return;const response=await api('/api/accounts');accounts=response.accounts;accountAcademicYear=response.academicYear??null;
  $('#account-wrap').hidden=false;
  const selectable=accounts.filter(a=>a.registeredForYear!==false||a.id===target);
@@ -152,6 +179,25 @@ const acts={
  'directory-prev':()=>{directoryPage--;updateDirectory();},
  'directory-next':()=>{directoryPage++;updateDirectory();},
  'toggle-registered-accounts':()=>{directoryPage=0;directoryHistory=false;directorySearch='';directoryRole='';directoryStatus='active';showAllRegisteredAccounts=!showAllRegisteredAccounts;render();document.getElementById('registered-accounts')?.scrollIntoView();},
+ 'link-old-result':e=>{
+  const student=accounts.find(a=>a.id===e.dataset.id);
+  const year=accountAcademicYear-1;
+  const body=`<p>Aluno de ${accountAcademicYear}: <strong>${esc(student.name)}</strong> (${esc(student.username)})</p><label>Pesquisar por nome, login ou atividade de ${year}<input id="history-query" maxlength="150"></label><button type="button" data-act="search-old-results" data-id="${esc(student.id)}">Pesquisar</button><p id="history-count" aria-live="polite"></p><label>Resultado<select required name="result" id="history-results"><option value="">Selecione um resultado</option></select></label>`;
+  modalForm('Vincular resultado de '+year,body,async(form,d)=>{
+   await api('/api/history/link',{target:student.id,result:d.result,year});
+   document.dispatchEvent(new Event('history-linked'));toast('Resultado vinculado à atividade inicial.');
+  },'Confirmar vínculo');
+ },
+ 'search-old-results':async e=>{
+  const term=document.getElementById('history-query').value.trim();
+  if(!term)throw new Error('Informe o nome, login ou atividade.');
+  const select=document.getElementById('history-results');
+  select.replaceChildren(new Option('Selecione um resultado',''));
+  const response=await api('/api/history/search?target='+encodeURIComponent(e.dataset.id)+'&q='+encodeURIComponent(term));
+  if(!select.isConnected)return;
+  for(const row of response.results.slice(0,50))select.add(new Option(row.name+' ('+row.reference+') · '+row.activity+' · '+row.date,row.id));
+  document.getElementById('history-count').textContent=response.results.length>50?'Exibindo 50 resultados. Refine a pesquisa.':response.results.length+' resultado(s) encontrado(s).';
+ },
  'delete-account':async e=>{
   const account=accounts.find(a=>a.id===e.dataset.id);
   if(!account?.canDelete)return;
