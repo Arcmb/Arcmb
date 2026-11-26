@@ -24,7 +24,8 @@ def main():
         ("'provisional_renewal.js':'application/javascript", 'static allowlist'),
     ):
         require(needle in webapp, f'v3.7.17 {label} hook missing.')
-    require(webapp.count('PROVISIONAL.start_if_student(') == 2, 'v3.7.17 master hooks missing.')
+    require(webapp.count("PROVISIONAL.start_if_student(self,c,target_id,user['id'])") == 2, 'Master create/edit hooks missing.')
+    require("PROVISIONAL.start_if_student(self,c,account['id'],user['id'])" in webapp, 'Master password reset hook missing.')
     require((ROOT / 'static' / 'provisional_renewal.js').exists(), 'Renewal asset missing.')
     html = (ROOT / 'static' / 'app.html').read_text(encoding='utf-8')
     require('/static/provisional_renewal.js?v=' in html, 'Renewal script tag missing.')
