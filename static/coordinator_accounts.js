@@ -10,8 +10,9 @@ acts['coordinator-new-student'] = () => {
   if (ME?.role !== 'coordenador') throw new Error('Utilize o painel correspondente ao seu perfil.');
   if (!safeLeave()) return;
   modalForm('Cadastrar aluno', `<div class="notice">Perfil fixo: <strong>Aluno</strong>. Troca de senha obrigatória no primeiro acesso.</div><div class="form-grid">${input('Nome completo','name','','text','required maxlength="150" autocomplete="off"')}${input('Login do aluno','username','','text','required minlength="3" maxlength="40" pattern="[A-Za-z0-9_.-]{3,40}" autocapitalize="none" spellcheck="false" autocomplete="off"')}${input('Senha provisória','password','','password','required minlength="8" maxlength="128" autocomplete="new-password"')}</div><p class="micro">Login: letras sem acento, números, ponto, hífen ou sublinhado. Senha: de 8 a 128 caracteres. Informe o acesso ao aluno por um canal privado; a senha não será exibida depois de salva.</p>`, async (form, data) => {
+    const history=await historyForNewStudent(data.name);
     const created = await api('/api/coordinator/accounts', {
-      name: data.name, username: data.username, password: data.password, role: 'aluno'
+      name: data.name, username: data.username, password: data.password, role: 'aluno', ...history
     });
     form.elements.password.value = '';
     dirty = false;
