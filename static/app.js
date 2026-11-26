@@ -69,6 +69,7 @@ function passwordView(required){return head('Minha senha',required?'Troque a sen
 let accountAcademicYear=null;
 let showAllRegisteredAccounts=false;
 let directorySearch='',directoryRole='';
+let directoryStatus='active';
 let directoryPage=0,directoryHistory=false;
 const isStudentAccount=a=>a.role==='user'||a.role==='aluno';
 function directoryRow(a){
@@ -87,6 +88,7 @@ function directoryResults(){
  const normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
  const term=normalize(directorySearch);
  const matches=accounts.filter(a=>{
+  if(directoryStatus!=='all'&&Boolean(a.active)!==(directoryStatus==='active'))return false;
   if(!all&&!isStudentAccount(a))return false;
   if(a.registeredForYear===false&&!(all&&directoryHistory))return false;
   if(all&&directoryRole&&(isStudentAccount(a)?'aluno':a.role)!==directoryRole)return false;
@@ -104,14 +106,16 @@ function updateDirectory(){
 }
 function accountDirectory(){
  const all=ME.role==='master'&&showAllRegisteredAccounts;
+ const statusFilter=ME.role==='master'?`<label>Situação<select id="directory-status">${[['active','Ativos'],['inactive','Desativados'],['all','Todos']].map(([value,label])=>`<option value="${value}" ${directoryStatus===value?'selected':''}>${label}</option>`).join('')}</select></label>`:'';
  const controls=all?`<label>Período<select id="directory-period"><option value="active">Ano ativo · ${accountAcademicYear}</option><option value="all" ${directoryHistory?'selected':''}>Todos os anos</option></select></label><label>Perfil<select id="directory-role">${[['','Todos os perfis'],['aluno','Aluno'],['coordenador','Coordenação'],['especial','Especial'],['master','Master']].map(([value,label])=>`<option value="${value}" ${value===directoryRole?'selected':''}>${label}</option>`).join('')}</select></label>`:'';
- return `<section class="card"><div id="registered-accounts"><h2>${all?'Usuários cadastrados':'Alunos de '+accountAcademicYear}</h2><div class="form-grid"><label>Buscar por nome ou login<input id="directory-search" type="search" value="${esc(directorySearch)}"></label>${controls}</div><div id="directory-results">${directoryResults()}</div></div></section>`;
+ return `<section class="card"><div id="registered-accounts"><h2>${all?'Usuários cadastrados':'Alunos de '+accountAcademicYear}</h2><div class="form-grid"><label>Buscar por nome ou login<input id="directory-search" type="search" value="${esc(directorySearch)}"></label>${statusFilter}${controls}</div><div id="directory-results">${directoryResults()}</div></div></section>`;
 }
 document.addEventListener('input',e=>{
  if(e.target.id==='directory-search'){directorySearch=e.target.value;directoryPage=0;updateDirectory();}
 });
 document.addEventListener('change',e=>{
  if(e.target.id==='directory-period')directoryHistory=e.target.value==='all';
+ else if(e.target.id==='directory-status')directoryStatus=e.target.value;
  else if(e.target.id==='directory-role')directoryRole=e.target.value;
  else return;
  directoryPage=0;updateDirectory();
@@ -147,7 +151,7 @@ const acts={
  'session-detail':e=>{const s=P.sessions.find(x=>x.id===e.dataset.id);modal(s.title,sessionItem(s),null);},
  'directory-prev':()=>{directoryPage--;updateDirectory();},
  'directory-next':()=>{directoryPage++;updateDirectory();},
- 'toggle-registered-accounts':()=>{directoryPage=0;directoryHistory=false;directorySearch='';directoryRole='';showAllRegisteredAccounts=!showAllRegisteredAccounts;render();document.getElementById('registered-accounts')?.scrollIntoView();},
+ 'toggle-registered-accounts':()=>{directoryPage=0;directoryHistory=false;directorySearch='';directoryRole='';directoryStatus='active';showAllRegisteredAccounts=!showAllRegisteredAccounts;render();document.getElementById('registered-accounts')?.scrollIntoView();},
  'directory-password':e=>{
   const account=accounts.find(a=>a.id===e.dataset.id);
   if(!account)return;
@@ -174,7 +178,7 @@ const acts={
  'import':()=>$('#import-file').click(),
  'audit':async()=>{let d=await api('/api/audit');$('#audit-results').innerHTML=items(d.events.map(x=>`<div class="item"><div><strong>${esc(x.actor)} → ${esc(x.target)}</strong><p>${esc(x.kind)}</p><small>${esc(new Date(x.at).toLocaleString('pt-BR'))}</small></div></div>`));}
 };
-document.addEventListener('click',async e=>{const nav=e.target.closest('[data-view]');if(nav){if(!safeLeave())return;dirty=false;view=nav.dataset.view;$('#sidebar').classList.remove('open');render();window.scrollTo(0,0);return;}const b=e.target.closest('[data-act]');if(!b)return;const action=acts[b.dataset.act];if(!action)return;e.preventDefault();b.disabled=true;try{await action(b);}catch(err){toast(err.message,true);}finally{if(b.isConnected)b.disabled=false;}});
+document.addEventListener('click',async e=>{const nav=e.target.closest('[data-view]');if(nav){if(!safeLeave())return;if(nav.dataset.view==='accounts'){directoryStatus='active';directoryPage=0;}dirty=false;view=nav.dataset.view;$('#sidebar').classList.remove('open');render();window.scrollTo(0,0);return;}const b=e.target.closest('[data-act]');if(!b)return;const action=acts[b.dataset.act];if(!action)return;e.preventDefault();b.disabled=true;try{await action(b);}catch(err){toast(err.message,true);}finally{if(b.isConnected)b.disabled=false;}});
 document.addEventListener('submit',async e=>{const f=e.target;if(!['modal-form','diagnosis-form','routine-form','password-form'].includes(f.id))return;e.preventDefault();if(saving||!f.reportValidity())return;const b=f.querySelector('button[type=submit]');b.disabled=true;let d=fd(f);try{
  if(f.id==='modal-form'){await modalHandler(f,d);closeModal(true);}
  if(f.id==='diagnosis-form'){d.obstacles=Object.keys(d).filter(k=>k.startsWith('obstacle:')).map(k=>k.slice(9));await save('diagnosis',d);}
