@@ -64,7 +64,7 @@ def main():
                 for uid in reversed(ids):
                     for table, column in (('hmay_proposals', 'target_id'), ('hmay_adaptive_consent', 'user_id'),
                                           ('hmay_adaptive_observations', 'user_id'), ('hmay_sessions', 'user_id'),
-                                          ('hmay_state', 'user_id')):
+                                          ('hmay_academic_year', 'user_id'), ('hmay_state', 'user_id')):
                         app.db.execute(c, f'DELETE FROM {table} WHERE {column}=?', (uid,))
                     app.db.execute(c, 'DELETE FROM hmay_adjustments WHERE actor_id=? OR target_id=?', (uid, uid))
                     app.db.execute(c, 'DELETE FROM hmay_events WHERE actor_id=? OR target_id=?', (uid, uid))
