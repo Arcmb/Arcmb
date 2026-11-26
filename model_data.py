@@ -1281,15 +1281,19 @@ def _ss_rollup_rows(values):
     return sorted(rows, key=lambda x: (-x['marked'], F.norm(x['name'])))
 
 
-def student_summary(app, c, user, target):
+def student_summary(app, c, user, target, history_year=None):
     state_row = app.db.execute(c, 'SELECT profile FROM hmay_state WHERE user_id=?', (target['id'],)).fetchone()
     profile = _rx_json(state_row['profile']) if state_row else {}
     study = _ss_profile_summary(profile)
-    performance_rows = app.db.execute(
-        c,
-        'SELECT * FROM hmay_performance WHERE user_id=? ORDER BY applied_on DESC,activity',
-        (target['id'],),
-    ).fetchall()
+    condition='p.user_id=?'
+    args=[target['id']]
+    if history_year is not None:
+        condition+=""" OR (p.applied_on LIKE ? AND EXISTS (
+            SELECT 1 FROM hmay_history_links h WHERE h.target_id=? AND h.year=?
+            AND h.source_id=p.user_id AND (h.result_id='' OR h.result_id=p.id)))"""
+        args.extend([str(history_year)+'-%',target['id'],history_year])
+    performance_rows=app.db.execute(c,'SELECT p.* FROM hmay_performance p WHERE '+condition+
+                                    ' ORDER BY p.applied_on DESC,p.activity',tuple(args)).fetchall()
     exam_cache = {}
     simulations = []
     aggregate = {kind: {} for kind in _RX_GROUP_KINDS}
