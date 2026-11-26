@@ -69,47 +69,58 @@ function passwordView(required){return head('Minha senha',required?'Troque a sen
 let accountAcademicYear=null;
 let showAllRegisteredAccounts=false;
 let directorySearch='',directoryRole='';
-function filterDirectory(){
- const panel=document.getElementById('registered-accounts');
- if(!panel)return;
- const normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
- const query=normalize(directorySearch);
- let count=0;
- for(const row of panel.querySelectorAll('[data-directory-role]')){
-  const visible=(!directoryRole||row.dataset.directoryRole===directoryRole)&&normalize(row.dataset.directoryName).includes(query);
-  row.hidden=!visible;
-  if(visible)count++;
- }
- const output=panel.querySelector('[data-directory-count]');
- if(output)output.textContent=count+' usuário(s) encontrado(s)';
-}
-document.addEventListener('input',e=>{
- if(e.target.id==='directory-search'){directorySearch=e.target.value;filterDirectory();}
-});
-document.addEventListener('change',e=>{
- if(e.target.id==='directory-role'){directoryRole=e.target.value;filterDirectory();}
-});
+let directoryPage=0,directoryHistory=false;
 const isStudentAccount=a=>a.role==='user'||a.role==='aluno';
-function accountsView(){
- if(ME.role==='coordenador')return coordinatorView();
- const students=accounts.filter(a=>isStudentAccount(a)&&a.registeredForYear);
- const visible=showAllRegisteredAccounts?accounts:students;
- const heading=showAllRegisteredAccounts?'Usuários cadastrados':'Alunos de '+accountAcademicYear;
- const toggle=button(showAllRegisteredAccounts?'Ver alunos de '+accountAcademicYear:'Ver todos os usuários cadastrados','toggle-registered-accounts','secondary');
- const controls=showAllRegisteredAccounts?`<div class="form-grid"><label>Buscar por nome ou login<input id="directory-search" type="search" value="${esc(directorySearch)}"></label><label>Perfil<select id="directory-role">${[['','Todos os perfis'],['aluno','Aluno'],['coordenador','Coordenação'],['especial','Especial'],['master','Master']].map(([value,label])=>`<option value="${value}" ${value===directoryRole?'selected':''}>${label}</option>`).join('')}</select></label></div><p data-directory-count aria-live="polite"></p>`:'';
- if(showAllRegisteredAccounts)queueMicrotask(filterDirectory);
- const rows=visible.map(a=>{
-  const attributes=`data-id="${esc(a.id)}"`;
+function directoryRow(a){
+ const attributes=`data-id="${esc(a.id)}"`;
+  if(ME.role==='coordenador')return `<div class="item"><div><strong>${esc(a.name)}</strong><p>${esc(a.username)}</p></div>${button('Abrir e ajustar rotina','open-account','primary',attributes)}</div>`;
   const historical=isStudentAccount(a)&&!a.registeredForYear;
   const enroll=historical&&a.active&&a.activeAcademicYear<accountAcademicYear
    ?button('Matricular em '+accountAcademicYear,'enroll-account','primary',attributes):'';
   return `<div data-directory-role="${esc(isStudentAccount(a)?'aluno':a.role)}" data-directory-name="${esc(a.name+' '+a.username)}"><div class="item"><div class="item-main"><strong>${esc(a.name)} ${tag(roleLabel(a.role))}</strong>
   <p>Login: ${esc(a.username)} · ${a.active?'Ativo':'Desativado'} · ${!a.passwordSet?'Senha inicial ainda não definida':a.must_change?'Troca de senha obrigatória':'Senha definida'}${historical?' · Fora da lista de '+accountAcademicYear:''}</p></div>
   <div class="item-actions">${enroll}${historical?'':button('Abrir rotina','open-account','primary',attributes)}${button('Editar acesso','edit-account','secondary',attributes)}${button(a.id===ME.id?'Minha senha':'Redefinir senha','directory-password','secondary',attributes)}</div></div></div>`;
+
+}
+function directoryResults(){
+ const all=ME.role==='master'&&showAllRegisteredAccounts;
+ const normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+ const term=normalize(directorySearch);
+ const matches=accounts.filter(a=>{
+  if(!all&&!isStudentAccount(a))return false;
+  if(a.registeredForYear===false&&!(all&&directoryHistory))return false;
+  if(all&&directoryRole&&(isStudentAccount(a)?'aluno':a.role)!==directoryRole)return false;
+  return normalize(a.name+' '+a.username).includes(term);
  });
- return head('Painel Master','Gerencie contas, acesso e senhas provisórias. A conta arcmb permanece Master.',toggle+button('Criar conta','new-account','primary'))+
-  `<section class="card" id="registered-accounts"><h2>${heading} (${visible.length})</h2>${controls}${rows.length?items(rows):'<p>Nenhum aluno cadastrado neste ano letivo.</p>'}</section>
-  <section class="card"><h2>Auditoria de acesso e alterações</h2>${button('Consultar últimos eventos','audit')}<div id="audit-results"></div></section>`;
+ const size=20,pages=Math.max(1,Math.ceil(matches.length/size));
+ directoryPage=Math.max(0,Math.min(directoryPage,pages-1));
+ const rows=matches.slice(directoryPage*size,(directoryPage+1)*size).map(directoryRow);
+ return `<p aria-live="polite">${matches.length} usuário(s) encontrado(s)</p>`+rows.join('')+(pages>1?
+  `<div class="actions">${button('Anterior','directory-prev','secondary',directoryPage===0?'disabled':'')}<span>Página ${directoryPage+1} de ${pages}</span>${button('Próxima','directory-next','secondary',directoryPage===pages-1?'disabled':'')}</div>`:'');
+}
+function updateDirectory(){
+ const box=document.getElementById('directory-results');
+ if(box)box.innerHTML=directoryResults();
+}
+function accountDirectory(){
+ const all=ME.role==='master'&&showAllRegisteredAccounts;
+ const controls=all?`<label>Período<select id="directory-period"><option value="active">Ano ativo · ${accountAcademicYear}</option><option value="all" ${directoryHistory?'selected':''}>Todos os anos</option></select></label><label>Perfil<select id="directory-role">${[['','Todos os perfis'],['aluno','Aluno'],['coordenador','Coordenação'],['especial','Especial'],['master','Master']].map(([value,label])=>`<option value="${value}" ${value===directoryRole?'selected':''}>${label}</option>`).join('')}</select></label>`:'';
+ return `<section class="card"><div id="registered-accounts"><h2>${all?'Usuários cadastrados':'Alunos de '+accountAcademicYear}</h2><div class="form-grid"><label>Buscar por nome ou login<input id="directory-search" type="search" value="${esc(directorySearch)}"></label>${controls}</div><div id="directory-results">${directoryResults()}</div></div></section>`;
+}
+document.addEventListener('input',e=>{
+ if(e.target.id==='directory-search'){directorySearch=e.target.value;directoryPage=0;updateDirectory();}
+});
+document.addEventListener('change',e=>{
+ if(e.target.id==='directory-period')directoryHistory=e.target.value==='all';
+ else if(e.target.id==='directory-role')directoryRole=e.target.value;
+ else return;
+ directoryPage=0;updateDirectory();
+});
+function accountsView(){
+ if(ME.role==='coordenador')return coordinatorView();
+ const toggle=button(showAllRegisteredAccounts?'Ver alunos de '+accountAcademicYear:'Ver usuários cadastrados','toggle-registered-accounts','secondary');
+ return head('Painel Master','Gerencie contas, acesso e senhas provisórias.',toggle+button('Criar conta','new-account','primary'))+accountDirectory()+
+  `<section class="card"><h2>Auditoria de acesso e alterações</h2>${button('Consultar últimos eventos','audit')}<div id="audit-results"></div></section>`;
 }
 function fixedForm(id){let f=P.fixed.find(x=>x.id===id)||{title:'',category:'Pessoal',start:'08:00',end:'09:00',before:0,after:0,recurrence:'weekly',days:[0],anchor:S.serverDate,until:''};modalForm('Compromisso',`<div class="form-grid">${input('Atividade','title',f.title,'text','required maxlength="250"')}${input('Categoria','category',f.category,'text','maxlength="100"')}${input('Início','start',f.start,'time','required')}${input('Término','end',f.end,'time','required')}${input('Deslocamento antes (min)','before',f.before,'number','min="0" max="240"')}${input('Deslocamento depois (min)','after',f.after,'number','min="0" max="240"')}${select('Recorrência','recurrence',f.recurrence,[['weekly','Semanal'],['biweekly','Quinzenal independente'],['once','Somente na data inicial']])}${input('Data inicial / referência da quinzena','anchor',f.anchor,'date','required')}${input('Repetir até (opcional)','until',f.until,'date')}</div><div class="check-list">${days.map((d,i)=>check(d,'day'+i,f.days.includes(i))).join('')}</div><p class="micro">Na recorrência quinzenal, a semana da data inicial é a semana ativa. Cada compromisso mantém seu próprio ciclo. Horário final anterior ao início indica que o compromisso atravessa a meia-noite.</p>`,async(form,d)=>{let list=days.map((_,i)=>i).filter(i=>form.elements['day'+i].checked);if(d.recurrence!=='once'&&!list.length)throw new Error('Selecione pelo menos um dia.');await save('fixed',{id,...d,before:+d.before,after:+d.after,days:list});});}
 function feedbackForm(sessionId,contentId){const x=P.sessions.find(x=>x.id===sessionId),c=P.contents.find(c=>c.id===(x?.contentId||contentId));modalForm('Registrar execução e verificação',`<div class="notice"><strong>${esc(x?.title||c?.title)}</strong><p>Tente recuperar o conhecimento sem consulta antes de conferir o material.</p></div><div class="form-grid">${select('Resultado','status','done',[['done','Concluí'],['partial','Fiz parcialmente'],['missed','Não consegui fazer']])}${input('Data da execução','date',S.serverDate,'date',`required max="${S.serverDate}"`)}${input('Tempo utilizado (min)','actualMin',x?x.end-x.start:c?.reviewMinutes||20,'number','min="0" max="720" required')}${input('Questões verificadas','total',0,'number','min="0" max="500" required')}${input('Acertos','correct',0,'number','min="0" max="500" required')}${select('Ajuda ou consulta','help','none',[['none','Resolvi sem ajuda'],['some','Precisei de alguma ajuda'],['full','Precisei consultar / ajuda completa']])}${select('Confiança nas respostas','confidence','medium',[['low','Baixa'],['medium','Média'],['high','Alta']])}${select('Dificuldade percebida','perceivedDifficulty','3',[['1','Muito fácil'],['2','Fácil'],['3','Moderada'],['4','Difícil'],['5','Muito difícil']])}${select('Fez atendimento de monitoria?','monitoring','no',[['no','Não'],['yes','Sim']])}${select('Obstáculo, quando houver','reason','',[['','Nenhum / não informar'],['time','Falta de tempo'],['tired','Cansaço'],['difficulty','Dificuldade de conteúdo'],['distraction','Distração'],['unclear','Tarefa pouco clara'],['unexpected','Imprevisto'],['other','Outro']])}</div><h3>Como você revisou?</h3><div class="check-list"><label><input type="checkbox" name="method_questoes"> Questões</label><label><input type="checkbox" name="method_correcao"> Refiz questões erradas / correção</label><label><input type="checkbox" name="method_resumo"> Resumo ou fichamento</label><label><input type="checkbox" name="method_flashcards"> Flashcards</label><label><input type="checkbox" name="method_releitura"> Releitura</label><label><input type="checkbox" name="method_videoaula"> Videoaula</label><label><input type="checkbox" name="method_explicacao"> Expliquei o conteúdo</label><label><input type="checkbox" name="method_mapa"> Mapa mental</label><label><input type="checkbox" name="method_monitoria"> Monitoria</label><label><input type="checkbox" name="method_outro"> Outro</label></div><div class="check-list"><label><input type="checkbox" name="needsAttention"> Este conteúdo precisa de mais atenção</label></div><div id="follow-up"></div>${input('Observação sobre a monitoria','monitoringNotes','','text','maxlength="500"')}${area('Descreva como você revisou','reviewDescription','')}${area('Outras observações','notes','')}`,async(f,d)=>{if(+d.correct>+d.total)throw new Error('Os acertos não podem superar o total.');const methods=['questoes','correcao','resumo','flashcards','releitura','videoaula','explicacao','mapa','monitoria','outro'].filter(k=>f.elements['method_'+k]?.checked);await save('feedback',{...d,sessionId:sessionId||'',contentId:contentId||'',actualMin:+d.actualMin,total:+d.total,correct:+d.correct,perceivedDifficulty:+d.perceivedDifficulty,monitoring:d.monitoring==='yes',needsAttention:!!f.elements.needsAttention?.checked,methods});});}
@@ -134,7 +145,9 @@ const acts={
  'feedback':e=>feedbackForm(e.dataset.id),'feedback-content':e=>feedbackForm(null,e.dataset.id),
  'edit-session':e=>{const s=P.sessions.find(x=>x.id===e.dataset.id);modalForm('Ajustar horário',`<p>${esc(s.title)}</p><div class="form-grid">${input('Data','date',s.date,'date','required')}${input('Início','start',hm(s.start),'time','required')}${input('Fim','end',hm(s.end),'time','required')}${check('Fixar este bloco no recálculo','locked',!!s.locked)}</div>`,async(f,d)=>save('session',{...d,id:s.id,locked:f.elements.locked.checked}));},
  'session-detail':e=>{const s=P.sessions.find(x=>x.id===e.dataset.id);modal(s.title,sessionItem(s),null);},
- 'toggle-registered-accounts':()=>{showAllRegisteredAccounts=!showAllRegisteredAccounts;render();document.getElementById('registered-accounts')?.scrollIntoView();},
+ 'directory-prev':()=>{directoryPage--;updateDirectory();},
+ 'directory-next':()=>{directoryPage++;updateDirectory();},
+ 'toggle-registered-accounts':()=>{directoryPage=0;directoryHistory=false;directorySearch='';directoryRole='';showAllRegisteredAccounts=!showAllRegisteredAccounts;render();document.getElementById('registered-accounts')?.scrollIntoView();},
  'directory-password':e=>{
   const account=accounts.find(a=>a.id===e.dataset.id);
   if(!account)return;

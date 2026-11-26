@@ -1,6 +1,6 @@
 'use strict';
 let perfDraft=null,perfSequence=0,perfRecords=[];
-function coordinatorView(){return head('Meus alunos','Abra a rotina para ajustar horários, disciplinas e metas. Contas especiais e de outros gestores não são exibidas.')+`<section class="card">${items(accounts.map(a=>`<div class="item"><div><strong>${esc(a.name)}</strong><p>${esc(a.username)} · ${esc(roleLabel(a.role))}</p></div>${button('Abrir e ajustar rotina','open-account','primary',`data-id="${esc(a.id)}"`)}</div>`))}</section>`;}
+function coordinatorView(){return head('Meus alunos','Consulte os alunos matriculados no ano letivo ativo.')+accountDirectory();}
 function performanceView(){
  const request=++perfSequence,who=target;
  queueMicrotask(async()=>{try{const result=await api('/api/performance?user='+encodeURIComponent(who));if(request!==perfSequence||view!=='performance'||target!==who)return;perfRecords=result.records;$('#performance-results').innerHTML=result.records.length?`<p class="micro">${result.records.length} de ${result.total} atividades. Exibição limitada às 500 mais recentes.</p>`+result.records.map(performanceRecord).join(''):empty('Nenhum resultado importado para esta conta.');}catch(e){if(request===perfSequence&&$('#performance-results'))$('#performance-results').textContent=e.message;}});

@@ -322,6 +322,10 @@ def _academic_year_active(app,c,target_id):
     account=app.db.execute(c,'SELECT role,created_at FROM hmay_users WHERE id=?',(target_id,)).fetchone()
     if account and account['role'] in ('user','aluno'):
         return int(account['created_at'][:4])
+    if account and account['role']=='coordenador':
+        owner=app.db.execute(c,'''SELECT y.active_year FROM hmay_academic_year y
+            JOIN hmay_users u ON u.id=y.user_id WHERE u.username=?''',(app.owner,)).fetchone()
+        if owner:return int(owner['active_year'])
     return int(P.now().year)
 
 def set_student_creation_year(app,c,actor_id,student_id):
@@ -736,7 +740,14 @@ class App:
                 return self.reply(start,200,academic_year_open(self,c,user,target_id,year,HTTPError,registration=True))
             if path=='/api/accounts':
                 if user['role']=='coordenador' and method=='GET':
-                    return self.reply(start,200,dict(accounts=PERF.allowed_accounts(self,c,user)))
+                    year=_academic_year_active(self,c,user['id'])
+                    rows=self.db.execute(c,'''SELECT u.id,u.username,u.name,u.role,u.active,u.must_change
+                        FROM hmay_users u LEFT JOIN hmay_academic_year y ON y.user_id=u.id
+                        WHERE u.active=1 AND (u.id=? OR (u.role IN ('user','aluno') AND
+                        (COALESCE(y.active_year,CAST(substr(u.created_at,1,4) AS INTEGER))=?
+                        OR EXISTS (SELECT 1 FROM hmay_academic_cycles cy WHERE cy.user_id=u.id AND cy.academic_year=?))))
+                        ORDER BY u.name,u.username''',(user['id'],year,year)).fetchall()
+                    return self.reply(start,200,dict(accounts=[self.user_public(row) for row in rows],academicYear=year))
                 if user['role']!='master':raise HTTPError(403,'Área exclusiva do Master.')
                 if method=='GET':
                     return self.reply(start,200,master_accounts(self,c,user))
