@@ -157,7 +157,7 @@ def bulk_create_student_accounts(app, c, user, students, provisional_password):
 
     rows = app.db.execute(
         c,
-        'SELECT id,username,name,role,active FROM hmay_users ORDER BY name,username'
+        "SELECT id,username,name,role,active FROM hmay_users WHERE role<>'deleted' ORDER BY name,username"
     ).fetchall()
     used_logins = {
         str(_bulk_row_value(row, 'username')).strip().lower()
@@ -177,7 +177,7 @@ def bulk_create_student_accounts(app, c, user, students, provisional_password):
     conflicts = []
     duplicate_rows = 0
     seen_file = set()
-    account_count = int(app.db.execute(c, 'SELECT COUNT(*) AS n FROM hmay_users').fetchone()['n'])
+    account_count = int(app.db.execute(c, "SELECT COUNT(*) AS n FROM hmay_users WHERE role<>'deleted'").fetchone()['n'])
 
     for student in students:
         name = str(student.get('name') or '').strip()
@@ -339,12 +339,13 @@ def master_accounts(app,c,user):
         u.created_at,y.active_year,cy.academic_year AS archived_year
         FROM hmay_users u LEFT JOIN hmay_academic_year y ON y.user_id=u.id
         LEFT JOIN hmay_academic_cycles cy ON cy.user_id=u.id AND cy.academic_year=?
-        ORDER BY u.name,u.username''',(year,)).fetchall()
+        WHERE u.role<>'deleted' ORDER BY u.name,u.username''',(year,)).fetchall()
     accounts=[]
     for row in rows:
         student=row['role'] in ('user','aluno')
         active_year=row['active_year'] or (int(row['created_at'][:4]) if student else None)
         accounts.append({**app.user_public(row),'passwordSet':row['password']!='!',
+                         'canDelete':row['id']!=user['id'] and row['username']!=app.owner,
                          'activeAcademicYear':active_year,
                          'registeredForYear':not student or active_year==year or row['archived_year']==year})
     return {'accounts':accounts,'academicYear':year}
@@ -704,7 +705,7 @@ class App:
                 password=valid_password(data.get('password'))
                 if self.db.execute(c,'SELECT id FROM hmay_users WHERE username=?',(login,)).fetchone():
                     raise HTTPError(409,'Esse login já está em uso. Escolha outro login ou solicite revisão ao Master.')
-                if self.db.execute(c,'SELECT COUNT(*) AS n FROM hmay_users').fetchone()['n']>=10000:
+                if self.db.execute(c,"SELECT COUNT(*) AS n FROM hmay_users WHERE role<>'deleted'").fetchone()['n']>=10000:
                     raise ValueError('Limite de 10.000 contas nesta versão.')
                 target_id=P.uid();stamp=P.now().isoformat()
                 # Conflict handling protects existing accounts even if two staff
@@ -717,10 +718,26 @@ class App:
                 set_student_creation_year(self,c,user['id'],target_id)
                 self.event(c,user,target_id,'account_created_by_coordinator');PROVISIONAL.start(self,c,target_id,user['id'])
                 return self.reply(start,200,dict(ok=True,id=target_id,username=login,role='aluno',must_change=True))
+            if path=='/api/accounts/delete':
+                if user['role']!='master':raise HTTPError(403,'Área exclusiva do Master.')
+                if method!='POST':raise HTTPError(405,'Use POST.')
+                target_id=data.get('id')
+                lock='' if self.db.local_path else ' FOR UPDATE'
+                account=self.db.execute(c,'SELECT username,role FROM hmay_users WHERE id=?'+lock,(target_id,)).fetchone()
+                if not account:raise HTTPError(404,'Conta não encontrada.')
+                if account['role']=='deleted':return self.reply(start,200,dict(ok=True))
+                if target_id==user['id'] or account['username']==self.owner:
+                    raise HTTPError(403,'Esta conta Master está protegida.')
+                if account['username']!=data.get('username'):
+                    raise HTTPError(409,'Confira o login antes de excluir.')
+                self.db.execute(c,"UPDATE hmay_users SET role='deleted',active=0,password='!',must_change=0,username=? WHERE id=?",('deleted:'+target_id,target_id))
+                self.db.execute(c,'DELETE FROM hmay_sessions WHERE user_id=?',(target_id,))
+                self.event(c,user,target_id,'account_deleted')
+                return self.reply(start,200,dict(ok=True))
             if path=='/api/accounts/reset-password':
                 if user['role']!='master':raise HTTPError(403,'Área exclusiva do Master.')
                 if method!='POST':raise HTTPError(405,'Use POST.')
-                account=self.db.execute(c,'SELECT id,username FROM hmay_users WHERE id=?',(data.get('id'),)).fetchone()
+                account=self.db.execute(c,"SELECT id,username FROM hmay_users WHERE id=? AND role<>'deleted'"+('' if self.db.local_path else ' FOR UPDATE'),(data.get('id'),)).fetchone()
                 if not account:raise HTTPError(404,'Conta não encontrada.')
                 if account['id']==user['id'] or account['username']==self.owner:
                     raise HTTPError(403,'Use Minha senha na própria conta.')
@@ -757,7 +774,7 @@ class App:
                 role=data.get('role')
                 if role is not None and role not in ('master','coordenador','especial','aluno','user'):raise ValueError('Perfil de acesso inválido.')
                 if target_id:
-                    old=self.db.execute(c,'SELECT * FROM hmay_users WHERE id=?',(target_id,)).fetchone()
+                    old=self.db.execute(c,"SELECT * FROM hmay_users WHERE id=? AND role<>'deleted'"+('' if self.db.local_path else ' FOR UPDATE'),(target_id,)).fetchone()
                     if not old:raise HTTPError(404,'Conta não encontrada.')
                     if login!=old['username']:raise ValueError('O login de uma conta existente não pode ser alterado.')
                     active=bool(data.get('active',True))
@@ -775,7 +792,7 @@ class App:
                     self.event(c,user,target_id,'account_updated')
                 else:
                     if self.db.execute(c,'SELECT id FROM hmay_users WHERE username=?',(login,)).fetchone():raise ValueError('Esse login já está cadastrado.')
-                    if self.db.execute(c,'SELECT COUNT(*) AS n FROM hmay_users').fetchone()['n']>=10000:raise ValueError('Limite de 10.000 contas nesta versão.')
+                    if self.db.execute(c,"SELECT COUNT(*) AS n FROM hmay_users WHERE role<>'deleted'").fetchone()['n']>=10000:raise ValueError('Limite de 10.000 contas nesta versão.')
                     target_id=self.db.create_user(c,login,name,valid_password(password),role or 'user')
                     if role in (None,'user','aluno'):
                         set_student_creation_year(self,c,user['id'],target_id)
