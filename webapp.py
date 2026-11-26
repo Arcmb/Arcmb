@@ -439,6 +439,9 @@ def academic_year_comparison(app,c,user,target_id,HTTPError):
 
 
 class App:
+    def overview_year(self,c,user):
+        return str(_academic_year_active(self,c,user['id']))
+
     def __init__(self,env=None):
         self.env=dict(os.environ if env is None else env);self.local=self.env.get('LOCAL_TEST')=='1'
         self.owner=username(self.env.get('MASTER_USERNAME','arcmb'))
@@ -710,6 +713,19 @@ class App:
                 set_student_creation_year(self,c,user['id'],target_id)
                 self.event(c,user,target_id,'account_created_by_coordinator');PROVISIONAL.start(self,c,target_id,user['id'])
                 return self.reply(start,200,dict(ok=True,id=target_id,username=login,role='aluno',must_change=True))
+            if path=='/api/accounts/reset-password':
+                if user['role']!='master':raise HTTPError(403,'Área exclusiva do Master.')
+                if method!='POST':raise HTTPError(405,'Use POST.')
+                account=self.db.execute(c,'SELECT id,username FROM hmay_users WHERE id=?',(data.get('id'),)).fetchone()
+                if not account:raise HTTPError(404,'Conta não encontrada.')
+                if account['id']==user['id'] or account['username']==self.owner:
+                    raise HTTPError(403,'Use Minha senha na própria conta.')
+                password=password_hash(valid_password(data.get('password','')))
+                self.db.execute(c,'UPDATE hmay_users SET password=?,must_change=1 WHERE id=?',(password,account['id']))
+                self.db.execute(c,'DELETE FROM hmay_sessions WHERE user_id=?',(account['id'],))
+                PROVISIONAL.start_if_student(self,c,account['id'],user['id'])
+                self.event(c,user,account['id'],'password_reset')
+                return self.reply(start,200,dict(ok=True))
             if path=='/api/accounts/enroll':
                 if user['role']!='master':raise HTTPError(403,'Área exclusiva do Master.')
                 if method!='POST':raise HTTPError(405,'Use POST para matricular o aluno.')
