@@ -262,6 +262,7 @@ def bulk_create_student_accounts(app, c, user, students, provisional_password):
             'INSERT INTO hmay_state(user_id,profile,version,updated_at) VALUES (?,?,?,?)',
             (target_id, encode(profile), 1, stamp),
         )
+        set_student_creation_year(app,c,user['id'],target_id)
         app.event(c, user, target_id, 'account_created_bulk_results')
         PROVISIONAL.start(app, c, target_id, user.get('id'))
         created.append({
@@ -316,7 +317,33 @@ def _academic_year_target(app,c,user,target_id,HTTPError):
 def _academic_year_active(app,c,target_id):
     academic_year_schema(app,c)
     row=app.db.execute(c,'SELECT active_year FROM hmay_academic_year WHERE user_id=?',(target_id,)).fetchone()
-    return int(row['active_year']) if row else int(P.now().year)
+    if row:
+        return int(row['active_year'])
+    account=app.db.execute(c,'SELECT role,created_at FROM hmay_users WHERE id=?',(target_id,)).fetchone()
+    if account and account['role'] in ('user','aluno'):
+        return int(account['created_at'][:4])
+    return int(P.now().year)
+
+def set_student_creation_year(app,c,actor_id,student_id):
+    year=_academic_year_active(app,c,actor_id)
+    app.db.execute(c,'INSERT INTO hmay_academic_year(user_id,active_year,updated_at) VALUES (?,?,?)',
+                   (student_id,year,P.now().isoformat()))
+
+def master_accounts(app,c,user):
+    year=_academic_year_active(app,c,user['id'])
+    rows=app.db.execute(c,'''SELECT u.id,u.username,u.name,u.role,u.active,u.must_change,u.password,
+        u.created_at,y.active_year,cy.academic_year AS archived_year
+        FROM hmay_users u LEFT JOIN hmay_academic_year y ON y.user_id=u.id
+        LEFT JOIN hmay_academic_cycles cy ON cy.user_id=u.id AND cy.academic_year=?
+        ORDER BY u.name,u.username''',(year,)).fetchall()
+    accounts=[]
+    for row in rows:
+        student=row['role'] in ('user','aluno')
+        active_year=row['active_year'] or (int(row['created_at'][:4]) if student else None)
+        accounts.append({**app.user_public(row),'passwordSet':row['password']!='!',
+                         'activeAcademicYear':active_year,
+                         'registeredForYear':not student or active_year==year or row['archived_year']==year})
+    return {'accounts':accounts,'academicYear':year}
 
 def academic_year_status(app,c,user,target_id,HTTPError):
     target=_academic_year_target(app,c,user,target_id,HTTPError)
@@ -326,16 +353,20 @@ def academic_year_status(app,c,user,target_id,HTTPError):
     years=sorted({active,*[int(r['academic_year']) for r in archived]})
     return {'student':{'id':target['id'],'name':target['name'],'username':target['username'],'active':bool(target['active'])},'activeYear':active,'archived':archived,'availableYears':years,'nextYear':max(years)+1 if years else active+1}
 
-def academic_year_open(app,c,user,target_id,new_year,HTTPError):
-    import json
+def academic_year_open(app,c,user,target_id,new_year,HTTPError,registration=False):
     target=_academic_year_target(app,c,user,target_id,HTTPError)
+    lock='' if app.db.local_path else ' FOR UPDATE'
+    state=app.db.execute(c,'SELECT profile,version FROM hmay_state WHERE user_id=?'+lock,(target_id,)).fetchone()
+    if not state:raise HTTPError(404,'Perfil acadêmico não encontrado.')
     current=_academic_year_active(app,c,target_id)
     try:new_year=int(new_year)
     except (TypeError,ValueError):raise ValueError('Ano letivo inválido.')
-    if new_year!=current+1:raise ValueError('O próximo ano letivo deve ser '+str(current+1)+'.')
+    if registration and new_year==current:
+        return academic_year_status(app,c,user,target_id,HTTPError)
+    if registration and new_year<current:
+        raise ValueError('A matrícula deve ser feita em um ano posterior ao ciclo ativo.')
+    if not registration and new_year!=current+1:raise ValueError('O próximo ano letivo deve ser '+str(current+1)+'.')
     if not 2020<=new_year<=2100:raise ValueError('Ano letivo fora do intervalo permitido.')
-    state=app.db.execute(c,'SELECT profile,version FROM hmay_state WHERE user_id=?',(target_id,)).fetchone()
-    if not state:raise HTTPError(404,'Perfil acadêmico não encontrado.')
     stamp=P.now().isoformat()
     target_cycle=app.db.execute(c,'SELECT id FROM hmay_academic_cycles WHERE user_id=? AND academic_year=?',(target_id,new_year)).fetchone()
     if target_cycle:raise HTTPError(409,'O ano '+str(new_year)+' já existe. Selecione esse ano no controle para alternar de ciclo.')
@@ -408,6 +439,9 @@ def academic_year_comparison(app,c,user,target_id,HTTPError):
 
 
 class App:
+    def overview_year(self,c,user):
+        return str(_academic_year_active(self,c,user['id']))
+
     def __init__(self,env=None):
         self.env=dict(os.environ if env is None else env);self.local=self.env.get('LOCAL_TEST')=='1'
         self.owner=username(self.env.get('MASTER_USERNAME','arcmb'))
@@ -676,15 +710,36 @@ class App:
                     raise HTTPError(409,'Esse login já está em uso. Escolha outro login ou solicite revisão ao Master.')
                 profile=P.default_profile(name,target_id)
                 self.db.execute(c,'INSERT INTO hmay_state(user_id,profile,version,updated_at) VALUES (?,?,?,?)',(target_id,encode(profile),1,stamp))
+                set_student_creation_year(self,c,user['id'],target_id)
                 self.event(c,user,target_id,'account_created_by_coordinator');PROVISIONAL.start(self,c,target_id,user['id'])
                 return self.reply(start,200,dict(ok=True,id=target_id,username=login,role='aluno',must_change=True))
+            if path=='/api/accounts/reset-password':
+                if user['role']!='master':raise HTTPError(403,'Área exclusiva do Master.')
+                if method!='POST':raise HTTPError(405,'Use POST.')
+                account=self.db.execute(c,'SELECT id,username FROM hmay_users WHERE id=?',(data.get('id'),)).fetchone()
+                if not account:raise HTTPError(404,'Conta não encontrada.')
+                if account['id']==user['id'] or account['username']==self.owner:
+                    raise HTTPError(403,'Use Minha senha na própria conta.')
+                password=password_hash(valid_password(data.get('password','')))
+                self.db.execute(c,'UPDATE hmay_users SET password=?,must_change=1 WHERE id=?',(password,account['id']))
+                self.db.execute(c,'DELETE FROM hmay_sessions WHERE user_id=?',(account['id'],))
+                PROVISIONAL.start_if_student(self,c,account['id'],user['id'])
+                self.event(c,user,account['id'],'password_reset')
+                return self.reply(start,200,dict(ok=True))
+            if path=='/api/accounts/enroll':
+                if user['role']!='master':raise HTTPError(403,'Área exclusiva do Master.')
+                if method!='POST':raise HTTPError(405,'Use POST para matricular o aluno.')
+                target_id=str(data.get('id') or '')
+                if target_id==user['id']:raise HTTPError(400,'Selecione uma conta de aluno.')
+                year=_academic_year_active(self,c,user['id'])
+                if data.get('year')!=year:raise HTTPError(409,'O ano letivo mudou. Atualize o painel.')
+                return self.reply(start,200,academic_year_open(self,c,user,target_id,year,HTTPError,registration=True))
             if path=='/api/accounts':
                 if user['role']=='coordenador' and method=='GET':
                     return self.reply(start,200,dict(accounts=PERF.allowed_accounts(self,c,user)))
                 if user['role']!='master':raise HTTPError(403,'Área exclusiva do Master.')
                 if method=='GET':
-                    rows=self.db.execute(c,'SELECT id,username,name,role,active,must_change,password FROM hmay_users ORDER BY name').fetchall()
-                    return self.reply(start,200,dict(accounts=[{**self.user_public(r),'passwordSet':r['password']!='!'}for r in rows]))
+                    return self.reply(start,200,master_accounts(self,c,user))
                 login=username(data.get('username',''));name=str(data.get('name','')).strip()
                 if not 1<=len(name)<=150:raise ValueError('Nome precisa ter de 1 a 150 caracteres.')
                 target_id=data.get('id');password=data.get('password','')
@@ -710,7 +765,11 @@ class App:
                 else:
                     if self.db.execute(c,'SELECT id FROM hmay_users WHERE username=?',(login,)).fetchone():raise ValueError('Esse login já está cadastrado.')
                     if self.db.execute(c,'SELECT COUNT(*) AS n FROM hmay_users').fetchone()['n']>=10000:raise ValueError('Limite de 10.000 contas nesta versão.')
-                    target_id=self.db.create_user(c,login,name,valid_password(password),role or 'user');self.event(c,user,target_id,'account_created');PROVISIONAL.start_if_student(self,c,target_id,user['id'])
+                    target_id=self.db.create_user(c,login,name,valid_password(password),role or 'user')
+                    if role in (None,'user','aluno'):
+                        set_student_creation_year(self,c,user['id'],target_id)
+                    self.event(c,user,target_id,'account_created')
+                    PROVISIONAL.start_if_student(self,c,target_id,user['id'])
                 return self.reply(start,200,dict(ok=True,id=target_id))
             if path=='/api/audit' and method=='GET':
                 if user['role']!='master':raise HTTPError(403,'Área exclusiva do Master.')
