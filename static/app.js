@@ -68,6 +68,27 @@ function dataView(){return head('Dados e backup','Os registros são salvos na co
 function passwordView(required){return head('Minha senha',required?'Troque a senha provisória para continuar.':'Ao trocar a senha, as outras sessões desta conta serão encerradas.')+`<form class="card" id="password-form"><div class="form-grid">${input('Senha atual','current','','password','required autocomplete="current-password" maxlength="128"')}${input('Nova senha','password','','password','required minlength="8" maxlength="128" autocomplete="new-password"')}${input('Confirme a nova senha','confirm','','password','required minlength="8" maxlength="128" autocomplete="new-password"')}</div><p class="micro">Use pelo menos 8 caracteres. Não reutilize a senha de outros serviços.</p><button class="primary" type="submit">Alterar senha</button></form>`;}
 let accountAcademicYear=null;
 let showAllRegisteredAccounts=false;
+let directorySearch='',directoryRole='';
+function filterDirectory(){
+ const panel=document.getElementById('registered-accounts');
+ if(!panel)return;
+ const normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+ const query=normalize(directorySearch);
+ let count=0;
+ for(const row of panel.querySelectorAll('[data-directory-role]')){
+  const visible=(!directoryRole||row.dataset.directoryRole===directoryRole)&&normalize(row.dataset.directoryName).includes(query);
+  row.hidden=!visible;
+  if(visible)count++;
+ }
+ const output=panel.querySelector('[data-directory-count]');
+ if(output)output.textContent=count+' usuário(s) encontrado(s)';
+}
+document.addEventListener('input',e=>{
+ if(e.target.id==='directory-search'){directorySearch=e.target.value;filterDirectory();}
+});
+document.addEventListener('change',e=>{
+ if(e.target.id==='directory-role'){directoryRole=e.target.value;filterDirectory();}
+});
 const isStudentAccount=a=>a.role==='user'||a.role==='aluno';
 function accountsView(){
  if(ME.role==='coordenador')return coordinatorView();
@@ -75,17 +96,19 @@ function accountsView(){
  const visible=showAllRegisteredAccounts?accounts:students;
  const heading=showAllRegisteredAccounts?'Usuários cadastrados':'Alunos de '+accountAcademicYear;
  const toggle=button(showAllRegisteredAccounts?'Ver alunos de '+accountAcademicYear:'Ver todos os usuários cadastrados','toggle-registered-accounts','secondary');
+ const controls=showAllRegisteredAccounts?`<div class="form-grid"><label>Buscar por nome ou login<input id="directory-search" type="search" value="${esc(directorySearch)}"></label><label>Perfil<select id="directory-role">${[['','Todos os perfis'],['aluno','Aluno'],['coordenador','Coordenação'],['especial','Especial'],['master','Master']].map(([value,label])=>`<option value="${value}" ${value===directoryRole?'selected':''}>${label}</option>`).join('')}</select></label></div><p data-directory-count aria-live="polite"></p>`:'';
+ if(showAllRegisteredAccounts)queueMicrotask(filterDirectory);
  const rows=visible.map(a=>{
   const attributes=`data-id="${esc(a.id)}"`;
   const historical=isStudentAccount(a)&&!a.registeredForYear;
   const enroll=historical&&a.active&&a.activeAcademicYear<accountAcademicYear
    ?button('Matricular em '+accountAcademicYear,'enroll-account','primary',attributes):'';
-  return `<div class="item"><div class="item-main"><strong>${esc(a.name)} ${tag(roleLabel(a.role))}</strong>
+  return `<div data-directory-role="${esc(isStudentAccount(a)?'aluno':a.role)}" data-directory-name="${esc(a.name+' '+a.username)}"><div class="item"><div class="item-main"><strong>${esc(a.name)} ${tag(roleLabel(a.role))}</strong>
   <p>Login: ${esc(a.username)} · ${a.active?'Ativo':'Desativado'} · ${!a.passwordSet?'Senha inicial ainda não definida':a.must_change?'Troca de senha obrigatória':'Senha definida'}${historical?' · Fora da lista de '+accountAcademicYear:''}</p></div>
-  <div class="item-actions">${enroll}${historical?'':button('Abrir rotina','open-account','primary',attributes)}${button('Editar acesso','edit-account','secondary',attributes)}</div></div>`;
+  <div class="item-actions">${enroll}${historical?'':button('Abrir rotina','open-account','primary',attributes)}${button('Editar acesso','edit-account','secondary',attributes)}${button(a.id===ME.id?'Minha senha':'Redefinir senha','directory-password','secondary',attributes)}</div></div></div>`;
  });
  return head('Painel Master','Gerencie contas, acesso e senhas provisórias. A conta arcmb permanece Master.',toggle+button('Criar conta','new-account','primary'))+
-  `<section class="card" id="registered-accounts"><h2>${heading} (${visible.length})</h2>${rows.length?items(rows):'<p>Nenhum aluno cadastrado neste ano letivo.</p>'}</section>
+  `<section class="card" id="registered-accounts"><h2>${heading} (${visible.length})</h2>${controls}${rows.length?items(rows):'<p>Nenhum aluno cadastrado neste ano letivo.</p>'}</section>
   <section class="card"><h2>Auditoria de acesso e alterações</h2>${button('Consultar últimos eventos','audit')}<div id="audit-results"></div></section>`;
 }
 function fixedForm(id){let f=P.fixed.find(x=>x.id===id)||{title:'',category:'Pessoal',start:'08:00',end:'09:00',before:0,after:0,recurrence:'weekly',days:[0],anchor:S.serverDate,until:''};modalForm('Compromisso',`<div class="form-grid">${input('Atividade','title',f.title,'text','required maxlength="250"')}${input('Categoria','category',f.category,'text','maxlength="100"')}${input('Início','start',f.start,'time','required')}${input('Término','end',f.end,'time','required')}${input('Deslocamento antes (min)','before',f.before,'number','min="0" max="240"')}${input('Deslocamento depois (min)','after',f.after,'number','min="0" max="240"')}${select('Recorrência','recurrence',f.recurrence,[['weekly','Semanal'],['biweekly','Quinzenal independente'],['once','Somente na data inicial']])}${input('Data inicial / referência da quinzena','anchor',f.anchor,'date','required')}${input('Repetir até (opcional)','until',f.until,'date')}</div><div class="check-list">${days.map((d,i)=>check(d,'day'+i,f.days.includes(i))).join('')}</div><p class="micro">Na recorrência quinzenal, a semana da data inicial é a semana ativa. Cada compromisso mantém seu próprio ciclo. Horário final anterior ao início indica que o compromisso atravessa a meia-noite.</p>`,async(form,d)=>{let list=days.map((_,i)=>i).filter(i=>form.elements['day'+i].checked);if(d.recurrence!=='once'&&!list.length)throw new Error('Selecione pelo menos um dia.');await save('fixed',{id,...d,before:+d.before,after:+d.after,days:list});});}
@@ -112,6 +135,15 @@ const acts={
  'edit-session':e=>{const s=P.sessions.find(x=>x.id===e.dataset.id);modalForm('Ajustar horário',`<p>${esc(s.title)}</p><div class="form-grid">${input('Data','date',s.date,'date','required')}${input('Início','start',hm(s.start),'time','required')}${input('Fim','end',hm(s.end),'time','required')}${check('Fixar este bloco no recálculo','locked',!!s.locked)}</div>`,async(f,d)=>save('session',{...d,id:s.id,locked:f.elements.locked.checked}));},
  'session-detail':e=>{const s=P.sessions.find(x=>x.id===e.dataset.id);modal(s.title,sessionItem(s),null);},
  'toggle-registered-accounts':()=>{showAllRegisteredAccounts=!showAllRegisteredAccounts;render();document.getElementById('registered-accounts')?.scrollIntoView();},
+ 'directory-password':e=>{
+  const account=accounts.find(a=>a.id===e.dataset.id);
+  if(!account)return;
+  if(account.id===ME.id){view='password';render();return;}
+  modalForm('Redefinir senha',`<p>${esc(account.name)} · ${esc(account.username)}</p>${input('Nova senha provisória','password','','password','required minlength="8" maxlength="128" autocomplete="new-password"')}<p>O usuário deverá trocar a senha no próximo acesso.</p>`,async(f,d)=>{
+   await api('/api/accounts/reset-password',{id:account.id,password:d.password});
+   await refreshAccounts();render();toast('Senha provisória atualizada.');
+  },'Redefinir senha');
+ },
  'enroll-account':async e=>{
   const account=accounts.find(a=>a.id===e.dataset.id);
   if(!account||!confirm('Matricular '+account.name+' em '+accountAcademicYear+'? O ciclo anterior ficará disponível no histórico.'))return;
