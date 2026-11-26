@@ -131,6 +131,10 @@ acts['bulk-accounts-create']=async()=>{
    const end=Math.min(rows,offset+chunkSize);
    bulkAccountsSetStatus(2,`Criando perfis ${offset+1} a ${end} de ${rows}…`,'',Math.round(100*offset/Math.max(rows,1)));
    const part=await api('/api/accounts/bulk-from-results',{file:bulkAccountsDraft.file,filename:bulkAccountsDraft.filename,date:bulkAccountsDraft.date||'',password,offset,limit:chunkSize});
+   for(const student of part.created||[]){
+    const history=await chooseHistory(student.name,part.historyYear,student.historyCandidates||[]);
+    if(history.historySource)await api('/api/history/link-profile',{target:student.id,...history});
+   }
    aggregate=bulkAccountsMergeResult(aggregate,part);
    const next=Number(part.batch?.nextOffset);offset=Number.isFinite(next)&&next>offset?next:end;
    bulkAccountsResult=aggregate;

@@ -14,6 +14,7 @@ import adaptive as ADAPT
 import exams as EXAMS
 import unified as UNIFIED
 import area_workbook as AREA_WORKBOOK
+import academic_history as HISTORY
 import model_data as MODEL_DATA
 import disciplines_catalog as DISCIPLINES  # === DISCIPLINES CATALOG V3.12.0 ===
 import enem_items as ENEM_ITEMS
@@ -270,6 +271,7 @@ def bulk_create_student_accounts(app, c, user, students, provisional_password):
             'username': login,
             'id': target_id,
             'generatedLogin': generated,
+            'historyCandidates': HISTORY.candidates(app,c,name,_academic_year_active(app,c,user['id'])-1),
             'status': 'created',
         })
         used_logins.add(login)
@@ -412,7 +414,8 @@ def academic_year_comparison(app,c,user,target_id,HTTPError):
     target=_academic_year_target(app,c,user,target_id,HTTPError)
     active=_academic_year_active(app,c,target_id);previous=active-1
     import model_data as AY_MODEL
-    data=AY_MODEL.student_summary(app,c,user,target)
+    HISTORY.schema(app,c)
+    data=AY_MODEL.student_summary(app,c,user,target,history_year=previous)
     buckets={previous:{'year':previous,'simulations':0,'correct':0,'marked':0,'valid':0,'areas':{}},active:{'year':active,'simulations':0,'correct':0,'marked':0,'valid':0,'areas':{}}}
     for sim in data.get('simulations',[]):
         try:year=int(str(sim.get('date',''))[:4])
@@ -440,7 +443,7 @@ def academic_year_comparison(app,c,user,target_id,HTTPError):
         p=pa.get(name,{});n=ca.get(name,{})
         pv=p.get('accuracy');nv=n.get('accuracy')
         area_compare.append({'name':name,'previous':pv,'current':nv,'delta':None if pv is None or nv is None else round(nv-pv,2)})
-    return {'student':{'id':target['id'],'name':target['name']},'previous':prev,'current':cur,'delta':delta,'areas':area_compare,'notice':'A comparação usa os resultados registrados em cada ano. Conteúdos e revisões do ano anterior não entram no cronograma atual.'}
+    return {'student':{'id':target['id'],'name':target['name']},'linkedResults':HISTORY.linked_results(app,c,target_id,previous),'previous':prev,'current':cur,'delta':delta,'areas':area_compare,'notice':'A comparação usa os resultados registrados em cada ano. Conteúdos e revisões do ano anterior não entram no cronograma atual.'}
 
 
 class App:
@@ -666,6 +669,7 @@ class App:
                     raise HTTPError(403, str(exc))
                 processed = len(selected_students)
                 next_offset = min(len(all_students), offset + processed)
+                result['historyYear']=_academic_year_active(self,c,user['id'])-1
                 result['batch'] = {
                     'offset': offset, 'processed': processed,
                     'nextOffset': next_offset, 'total': len(all_students),
@@ -690,13 +694,32 @@ class App:
                 if method!='GET':raise HTTPError(405,'Use consulta GET.')
                 target_id=query.get('user',[user['id']])[0]
                 return self.reply(start,200,academic_year_comparison(self,c,user,target_id,HTTPError))
+            if path in ('/api/history/candidates','/api/history/search','/api/history/link','/api/history/link-profile'):
+                if user['role'] not in ('master','coordenador'):raise HTTPError(403,'Acesso reservado à gestão.')
+                year=_academic_year_active(self,c,user['id'])-1
+                if path=='/api/history/candidates' and method=='GET':
+                    return self.reply(start,200,dict(year=year,accounts=HISTORY.candidates(self,c,query.get('name',[''])[0].strip(),year)))
+                target_id=data.get('target') if method=='POST' else query.get('target',[''])[0]
+                student=_academic_year_target(self,c,user,target_id,HTTPError)
+                if student['role'] not in ('user','aluno') or _academic_year_active(self,c,target_id)!=year+1:
+                    raise ValueError('Selecione um aluno com o ciclo ativo em '+str(year+1)+'.')
+                if path=='/api/history/search' and method=='GET':
+                    return self.reply(start,200,dict(year=year,results=HISTORY.search(self,c,query.get('q',[''])[0],year,target_id)))
+                if path=='/api/history/link-profile' and method=='POST':
+                    HISTORY.link_on_creation(self,c,user,target_id,student['name'],data,year+1)
+                    return self.reply(start,200,dict(ok=True))
+                if path!='/api/history/link' or method!='POST':raise HTTPError(405,'Método inválido.')
+                row=self.db.execute(c,"SELECT p.user_id FROM hmay_performance p JOIN hmay_users u ON u.id=p.user_id WHERE p.id=? AND p.applied_on LIKE ? AND u.role IN ('user','aluno','deleted')",(data.get('result'),str(year)+'-%')).fetchone()
+                if not row or data.get('year')!=year:raise ValueError('Resultado indisponível para este ano.')
+                HISTORY.link(self,c,user,target_id,year,row['user_id'],data['result'])
+                return self.reply(start,200,dict(ok=True))
             if path=='/api/coordinator/accounts':
                 # Dedicated create-only action. The existing Master administration
                 # endpoint and target-account permissions remain unchanged.
                 if user['role']!='coordenador':
                     raise HTTPError(403,'Cadastro reservado ao coordenador. O Master utiliza o Painel Master.')
                 if method!='POST':raise HTTPError(405,'Use o formulário Cadastrar aluno.')
-                if set(data)-{'username','name','password','role'} or data.get('role','aluno')!='aluno':
+                if set(data)-{'username','name','password','role','historySource','historyYear'} or data.get('role','aluno')!='aluno':
                     raise HTTPError(403,'O coordenador pode criar somente contas de Aluno. Não pode alterar acessos existentes.')
                 if not isinstance(data.get('username'),str) or not isinstance(data.get('name'),str):
                     raise ValueError('Informe o nome e o login do aluno.')
@@ -716,6 +739,7 @@ class App:
                 profile=P.default_profile(name,target_id)
                 self.db.execute(c,'INSERT INTO hmay_state(user_id,profile,version,updated_at) VALUES (?,?,?,?)',(target_id,encode(profile),1,stamp))
                 set_student_creation_year(self,c,user['id'],target_id)
+                HISTORY.link_on_creation(self,c,user,target_id,name,data,_academic_year_active(self,c,user['id']))
                 self.event(c,user,target_id,'account_created_by_coordinator');PROVISIONAL.start(self,c,target_id,user['id'])
                 return self.reply(start,200,dict(ok=True,id=target_id,username=login,role='aluno',must_change=True))
             if path=='/api/accounts/delete':
@@ -796,6 +820,7 @@ class App:
                     target_id=self.db.create_user(c,login,name,valid_password(password),role or 'user')
                     if role in (None,'user','aluno'):
                         set_student_creation_year(self,c,user['id'],target_id)
+                        HISTORY.link_on_creation(self,c,user,target_id,name,data,_academic_year_active(self,c,user['id']))
                     self.event(c,user,target_id,'account_created')
                     PROVISIONAL.start_if_student(self,c,target_id,user['id'])
                 return self.reply(start,200,dict(ok=True,id=target_id))

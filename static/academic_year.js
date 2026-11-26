@@ -2,6 +2,7 @@
 // === MEU CRONOGRAMA: CICLOS DE ANO LETIVO V2 ===
 (function(){
  let statusCache=new Map(),comparisonCache=new Map(),loadingStatus=new Set(),loadingComparison=new Set();
+ document.addEventListener('history-linked',()=>comparisonCache.clear());
  const canManage=()=>typeof manages==='function'&&manages();
  const id=()=>String(typeof target!=='undefined'&&target?target:'');
  const own=()=>String(typeof ME!=='undefined'&&ME?.id?ME.id:'');
@@ -49,10 +50,12 @@
   if(!comparisonCache.has(key)&&!loadingComparison.has(key))queueMicrotask(()=>loadComparison());
   const d=comparisonCache.get(key);if(!d)return '<section class="card academic-year-compare"><h2>Evolução anual</h2><p>Carregando comparação…</p></section>';
   if(d.error)return '<section class="card academic-year-compare"><h2>Evolução anual</h2><div class="notice warning">'+esc(d.error)+'</div></section>';
+  const links=(d.linkedResults||[]).map(r=>'<li>'+esc(r.activity)+' · '+esc(r.applied_on)+' · '+esc(r.name)+'</li>').join('');
+  const linked=links?'<details><summary>Resultados vinculados à atividade inicial</summary><ul>'+links+'</ul></details>':'';
   const p=d.previous||{},c=d.current||{},delta=d.delta;
   const deltaText=delta===null?'—':(delta>0?'+':'')+Number(delta).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' p.p.';
   const rows=(d.areas||[]).map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+pct(x.previous)+'</td><td>'+pct(x.current)+'</td><td>'+(x.delta===null?'—':(x.delta>0?'+':'')+Number(x.delta).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' p.p.')+'</td></tr>').join('');
-  return '<section class="card academic-year-compare"><div class="page-head"><div><p class="eyebrow">COMPARAÇÃO</p><h2>Evolução '+p.year+' → '+c.year+'</h2><p>'+esc(d.notice||'')+'</p></div>'+button('Atualizar comparação','academic-year-compare-refresh','secondary')+'</div><div class="academic-year-compare-grid"><div><span>Atividade inicial · média de '+p.year+'</span><strong>'+pct(p.accuracy)+'</strong><small>'+(p.simulations||0)+' simulado(s) · média '+(p.averageCorrect??'—')+' acertos</small></div><div class="academic-year-delta"><span>Evolução</span><strong>'+deltaText+'</strong><small>diferença no aproveitamento acumulado</small></div><div><span>'+c.year+'</span><strong>'+pct(c.accuracy)+'</strong><small>'+(c.simulations||0)+' simulado(s) · média '+(c.averageCorrect??'—')+' acertos</small></div></div>'+(rows?'<h3>Comparação por área</h3><div class="table-wrap"><table><thead><tr><th>Área</th><th>'+p.year+'</th><th>'+c.year+'</th><th>Variação</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="notice">Ainda não há resultados suficientes nos dois anos para comparar por área.</div>')+'</section>';
+  return '<section class="card academic-year-compare"><div class="page-head"><div><p class="eyebrow">COMPARAÇÃO</p><h2>Evolução '+p.year+' → '+c.year+'</h2><p>'+esc(d.notice||'')+'</p></div>'+button('Atualizar comparação','academic-year-compare-refresh','secondary')+'</div><div class="academic-year-compare-grid"><div><span>Atividade inicial · média de '+p.year+'</span><strong>'+pct(p.accuracy)+'</strong><small>'+(p.simulations||0)+' simulado(s) · média '+(p.averageCorrect??'—')+' acertos</small></div><div class="academic-year-delta"><span>Evolução</span><strong>'+deltaText+'</strong><small>diferença no aproveitamento acumulado</small></div><div><span>'+c.year+'</span><strong>'+pct(c.accuracy)+'</strong><small>'+(c.simulations||0)+' simulado(s) · média '+(c.averageCorrect??'—')+' acertos</small></div></div>'+(rows?'<h3>Comparação por área</h3><div class="table-wrap"><table><thead><tr><th>Área</th><th>'+p.year+'</th><th>'+c.year+'</th><th>Variação</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="notice">Ainda não há resultados suficientes nos dois anos para comparar por área.</div>')+linked+'</section>';
  }
  if(typeof accountsView==='function'){const base=accountsView;accountsView=function(){return yearPanel()+base();};}
  if(typeof coordinatorView==='function'){const base=coordinatorView;coordinatorView=function(){return yearPanel()+base();};}
